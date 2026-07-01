@@ -8,6 +8,7 @@ import {
   randomAffinities,
   setF32,
 } from "@/visuals/shared";
+import { DENSITY_COUNTS } from "@/types/visualizer";
 
 /**
  * ORBITAL SWARM — several invisible attractors drift through 3D space, each with
@@ -93,7 +94,7 @@ const VERTEX_BODY = /* glsl */ `
     float dist = max(-mv.z, 0.001);
     float depthF = clamp((uVolume.z * 2.0 + CAM_NEAR - dist) / (uVolume.z * 2.0), 0.12, 1.0);
 
-    float size = aBaseSize * uParticleSize * (1.0 + low * 0.8 + sparkle * 1.6);
+    float size = aBaseSize * uElementSize * (1.0 + low * 0.8 + sparkle * 1.6);
     gl_PointSize = clamp(size * uPixelScale / dist, 1.0, 64.0);
     gl_Position = projectionMatrix * mv;
 
@@ -113,7 +114,8 @@ interface AttractorParam {
   px: number; py: number; pz: number; // drift phase
 }
 
-function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
+function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
+  const count = DENSITY_COUNTS[density];
   const attractorCount = 3 + Math.floor(Math.random() * 3); // 3–5
 
   const params: AttractorParam[] = [];
@@ -189,7 +191,7 @@ function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): Temp
   let hw = halfW, hh = halfH, hd = halfD;
 
   return {
-    points,
+    root: points,
     onFrame(time) {
       for (let i = 0; i < attractorCount; i++) {
         const q = params[i];

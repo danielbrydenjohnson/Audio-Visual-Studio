@@ -133,23 +133,25 @@ function ControlSlider({ label, value, min, max, step = 1, unit = "%", onChange 
 interface SelectOption { value: string; label: string; }
 
 interface ControlSelectProps {
-  label:    string;
-  value:    string;
-  options:  SelectOption[];
-  onChange: (v: string) => void;
+  label:     string;
+  value:     string;
+  options:   SelectOption[];
+  disabled?: boolean;
+  onChange:  (v: string) => void;
 }
 
-function ControlSelect({ label, value, options, onChange }: ControlSelectProps) {
+function ControlSelect({ label, value, options, disabled = false, onChange }: ControlSelectProps) {
   return (
-    <div className="space-y-1.5">
+    <div className={`space-y-1.5 ${disabled ? "opacity-50" : ""}`}>
       <span className="text-[11px] font-mono text-muted-foreground">{label}</span>
       <select
         value={value}
+        disabled={disabled}
         onChange={e => onChange(e.target.value)}
         className="w-full text-[11px] font-mono bg-muted/40 border border-border/60
           rounded-md px-2.5 py-1.5 text-foreground cursor-pointer
           hover:border-border focus:outline-none focus:ring-1 focus:ring-primary/40
-          appearance-none"
+          appearance-none disabled:cursor-not-allowed"
         style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
         aria-label={label}
       >
@@ -157,6 +159,40 @@ function ControlSelect({ label, value, options, onChange }: ControlSelectProps) 
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
+    </div>
+  );
+}
+
+// ─── ControlToggle — on/off switch ───────────────────────────────────────────
+
+interface ControlToggleProps {
+  label:     string;
+  value:     boolean;
+  disabled?: boolean;
+  onChange:  (v: boolean) => void;
+}
+
+function ControlToggle({ label, value, disabled = false, onChange }: ControlToggleProps) {
+  return (
+    <div className={`flex items-center justify-between ${disabled ? "opacity-50 pointer-events-none" : ""}`}>
+      <span className="text-[11px] font-mono text-muted-foreground">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => onChange(!value)}
+        className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+          value ? "bg-primary/70" : "bg-muted/60 border border-border/60"
+        } disabled:cursor-not-allowed`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+            value ? "translate-x-4" : "translate-x-0"
+          }`}
+        />
+      </button>
     </div>
   );
 }
@@ -225,6 +261,8 @@ function App() {
   const [settings,       setSettings]       = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [visualSettings, setVisualSettings] = useState<ParticleVisualSettings>(DEFAULT_VISUAL_SETTINGS);
   const [templateId,     setTemplateId]     = useState<VisualTemplateId>(DEFAULT_TEMPLATE_ID);
+  const [kaleidoscope,         setKaleidoscope]         = useState(false);
+  const [kaleidoscopeSegments, setKaleidoscopeSegments] = useState(8);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
 
@@ -273,6 +311,7 @@ function App() {
   }
 
   const hasAudio = audioUrl !== null && fileName !== null;
+  const recordingLocked = recorder.status === "recording" || recorder.status === "starting";
 
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col overflow-hidden font-sans selection:bg-primary/30">
@@ -305,6 +344,8 @@ function App() {
               settings={settings}
               visualSettings={visualSettings}
               templateId={templateId}
+              kaleidoscope={kaleidoscope}
+              kaleidoscopeSegments={kaleidoscopeSegments}
               onCanvasReady={setCanvas}
             />
             {/* Active template name */}
@@ -397,7 +438,7 @@ function App() {
                   change halfway through a capture. */}
               <TemplateSelector
                 value={templateId}
-                disabled={recorder.status === "recording" || recorder.status === "starting"}
+                disabled={recordingLocked}
                 onChange={setTemplateId}
               />
 
@@ -405,12 +446,12 @@ function App() {
 
               <div className="space-y-4">
                 <ControlSelect
-                  label="Particle Density"
+                  label="Visual Density"
                   value={visualSettings.density}
                   options={[
-                    { value: "low",    label: "Low — 750 particles" },
-                    { value: "medium", label: "Medium — 1,500 particles" },
-                    { value: "high",   label: "High — 3,000 particles" },
+                    { value: "low",    label: "Low" },
+                    { value: "medium", label: "Medium" },
+                    { value: "high",   label: "High" },
                   ]}
                   onChange={v => setVisual("density", v as ParticleVisualSettings["density"])}
                 />
@@ -422,11 +463,11 @@ function App() {
                   onChange={v => setVisual("speed", v)}
                 />
                 <ControlSlider
-                  label="Particle Size"
-                  value={visualSettings.particleSize}
+                  label="Element Size"
+                  value={visualSettings.elementSize}
                   min={50}
                   max={200}
-                  onChange={v => setVisual("particleSize", v)}
+                  onChange={v => setVisual("elementSize", v)}
                 />
                 <ControlSlider
                   label="Depth"
@@ -463,6 +504,33 @@ function App() {
                   max={100}
                   onChange={v => setVisual("glow", v)}
                 />
+
+                <ControlToggle
+                  label="Kaleidoscope"
+                  value={kaleidoscope}
+                  disabled={recordingLocked}
+                  onChange={v => { if (!recordingLocked) setKaleidoscope(v); }}
+                />
+                {kaleidoscope && (
+                  <ControlSelect
+                    label="Kaleidoscope Segments"
+                    value={String(kaleidoscopeSegments)}
+                    disabled={recordingLocked}
+                    options={[
+                      { value: "4",  label: "4 segments" },
+                      { value: "6",  label: "6 segments" },
+                      { value: "8",  label: "8 segments" },
+                      { value: "10", label: "10 segments" },
+                      { value: "12", label: "12 segments" },
+                    ]}
+                    onChange={v => { if (!recordingLocked) setKaleidoscopeSegments(Number(v)); }}
+                  />
+                )}
+                {recordingLocked && (
+                  <p className="text-[9px] font-mono text-amber-400/80 uppercase tracking-wider">
+                    Kaleidoscope locked while recording
+                  </p>
+                )}
               </div>
             </div>
 

@@ -8,6 +8,7 @@ import {
   randomAffinities,
   setF32,
 } from "@/visuals/shared";
+import { DENSITY_COUNTS } from "@/types/visualizer";
 
 /**
  * PULSE TUNNEL — particles fill a long cylindrical volume down the -z axis and
@@ -76,7 +77,7 @@ const VERTEX_BODY = /* glsl */ `
     float dist = max(-mv.z, 0.001);
     float depthF = clamp((halfLen * 2.0 + CAM_NEAR - dist) / (halfLen * 2.0), 0.1, 1.0);
 
-    float size = aBaseSize * uParticleSize * (1.0 + low * 0.9 + sparkle * 1.8);
+    float size = aBaseSize * uElementSize * (1.0 + low * 0.9 + sparkle * 1.8);
     gl_PointSize = clamp(size * uPixelScale / dist, 1.0, 64.0);
     gl_Position = projectionMatrix * mv;
 
@@ -89,7 +90,8 @@ const VERTEX_BODY = /* glsl */ `
   }
 `;
 
-function build({ count, halfW, halfH, shared }: TemplateCreateArgs): TemplateRuntime {
+function build({ density, halfW, halfH, shared }: TemplateCreateArgs): TemplateRuntime {
+  const count = DENSITY_COUNTS[density];
   // Tunnel radius scales with the smaller cross-section half-extent.
   const rMax = Math.min(halfW, halfH) * 0.85;
 
@@ -145,7 +147,7 @@ function build({ count, halfW, halfH, shared }: TemplateCreateArgs): TemplateRun
   points.frustumCulled = false;
 
   return {
-    points,
+    root: points,
     dispose() {
       geometry.dispose();
       material.dispose();

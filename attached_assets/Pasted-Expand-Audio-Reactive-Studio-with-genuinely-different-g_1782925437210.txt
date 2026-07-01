@@ -1,0 +1,602 @@
+Expand Audio Reactive Studio with genuinely different geometry-based visual templates and a global Kaleidoscope mode.
+
+The existing app currently has three working templates:
+
+- Particle Field
+- Orbital Swarm
+- Pulse Tunnel
+
+They use point particles and the template switching is working.
+
+Preserve:
+
+- Audio upload
+- Playback
+- Seeking
+- Three-band frequency analysis
+- Low, Mid, and High influence controls
+- Existing visual controls
+- Recording
+- WebM preview
+- WebM download
+- The persistent Three.js renderer
+- The persistent renderer canvas
+- The existing three templates
+
+Do not publish the application yet.
+
+CORE PROBLEM
+
+The current template architecture is too focused on spherical point particles.
+
+The app must support visually different rendering primitives, including:
+
+- Point particles
+- Cubes
+- Polyhedrons
+- Lines
+- Wireframes
+- Instanced geometry
+
+Do not create several templates that are merely the same circular particles arranged differently.
+
+TEMPLATE ARCHITECTURE REFACTOR
+
+Inspect the existing template interface before changing it.
+
+Refactor the template system so an active template is not required to return only a THREE.Points object.
+
+The active template interface should support a generic THREE.Object3D root.
+
+For example, each template instance should expose something conceptually similar to:
+
+- id
+- root: THREE.Object3D
+- update(...)
+- updateSettings(...) if required
+- dispose()
+
+The root may contain:
+
+- THREE.Points
+- THREE.InstancedMesh
+- THREE.LineSegments
+- THREE.Line
+- THREE.Group
+- Multiple child objects when genuinely necessary
+
+There must still be only one active template root in the scene.
+
+When switching templates:
+
+1. Remove the old template root from the scene
+2. Dispose every geometry, material, texture, render target, and template-owned resource
+3. Create the selected template
+4. Add its root to the existing scene
+5. Continue using the existing renderer, canvas, camera, animation loop, and ResizeObserver
+
+Do not create a new WebGLRenderer for each template.
+
+Do not create another canvas.
+
+Do not create another requestAnimationFrame loop.
+
+Do not break the existing recording workflow.
+
+TEMPLATE LIST
+
+The app should have exactly seven visual templates after this task:
+
+1. Particle Field
+2. Orbital Swarm
+3. Pulse Tunnel
+4. Cube Swarm
+5. Polyhedron Storm
+6. Laser Lattice
+7. Wireframe Bloom
+
+Update the strongly typed VisualTemplateId and central metadata.
+
+Add descriptions:
+
+Particle Field:
+"Free-floating particles moving through open 3D space."
+
+Orbital Swarm:
+"Independent particle clusters orbiting moving attractors."
+
+Pulse Tunnel:
+"A deep reactive particle tunnel moving toward the camera."
+
+Cube Swarm:
+"Thousands of reactive cubes drifting and tumbling through space."
+
+Polyhedron Storm:
+"Angular geometric forms moving through turbulent 3D currents."
+
+Laser Lattice:
+"Reactive line structures cutting through a deep spatial grid."
+
+Wireframe Bloom:
+"Layered wireframe geometry unfolding and pulsing through space."
+
+PRESERVE EXISTING TEMPLATES
+
+Do not materially rebuild Particle Field, Orbital Swarm, or Pulse Tunnel.
+
+Adapt them only as required to satisfy the more generic template interface.
+
+They must continue working as they currently do.
+
+NEW TEMPLATE 4: CUBE SWARM
+
+Create a 3D field of cubes.
+
+Use:
+
+- THREE.InstancedMesh
+- BoxGeometry
+- One shared material
+- Instance matrices
+- Per-instance colour where supported
+
+Do not create one Mesh object per cube.
+
+Each cube must have stable individual attributes:
+
+- x, y, z position
+- velocity
+- rotation x, y, z
+- rotation speed
+- base scale
+- Low affinity
+- Mid affinity
+- High affinity
+- random seed
+- movement phase
+- dominant frequency band
+
+Base movement:
+
+- Cubes drift through 3D space
+- Cubes rotate independently
+- Cubes move at different speeds
+- Cubes recycle or wrap when leaving the volume
+- The complete swarm must not rotate as one object
+
+Low reaction:
+
+- Low-sensitive cubes briefly increase scale
+- Some receive short impulses along their individual velocity direction
+- Some move faster through depth
+- Do not scale the complete swarm
+
+Mid reaction:
+
+- Mid-sensitive cubes change their individual tumbling speed
+- Add local curved movement and direction changes
+- Do not rotate the whole scene
+
+High reaction:
+
+- High-sensitive cubes briefly increase brightness
+- A changing subset should rotate sharply or flicker
+- Do not flash every cube simultaneously
+
+Density options:
+
+- Low: approximately 250 cubes
+- Medium: approximately 600 cubes
+- High: approximately 1,000 cubes
+
+Do not use the point-particle density values blindly for InstancedMesh geometry.
+
+NEW TEMPLATE 5: POLYHEDRON STORM
+
+Create a field of angular geometric shapes.
+
+Use InstancedMesh efficiently.
+
+Use a mixture of shapes such as:
+
+- Tetrahedron
+- Octahedron
+- Icosahedron
+
+Because one InstancedMesh requires one geometry, it is acceptable for this template root to contain three InstancedMesh children, one for each geometry type.
+
+Keep the total object count controlled.
+
+Each instance must have:
+
+- Independent position
+- Independent rotation
+- Independent rotation speed
+- Independent scale
+- Independent Low, Mid, and High affinities
+- Random seed
+- Movement phase
+
+Base movement:
+
+- Shapes move through turbulent 3D space
+- Different geometry types move at slightly different speeds
+- Shapes rotate independently
+- Do not rotate the root group globally as the main movement
+
+Low reaction:
+
+- Heavy scale pulses on Low-sensitive shapes
+- Short directional impulses
+- Some shapes move toward the camera
+
+Mid reaction:
+
+- Increased individual tumbling
+- Curved local movement
+- Position distortion based on each instance's phase
+
+High reaction:
+
+- Brief colour and brightness changes
+- Sharp individual rotation changes
+- A changing subset sparkles
+
+Density options:
+
+- Low: approximately 180 total shapes
+- Medium: approximately 450 total shapes
+- High: approximately 800 total shapes
+
+NEW TEMPLATE 6: LASER LATTICE
+
+Create a visual based primarily on actual lines rather than point sprites.
+
+Use:
+
+- THREE.LineSegments
+- BufferGeometry
+- Typed position and colour arrays
+- Additive or screen-like blending where appropriate
+
+The visual should contain a deep 3D lattice of independent line segments.
+
+Do not create one Line object per segment.
+
+Do not use connecting lines between particle points.
+
+Instead, line segments themselves are the core visual objects.
+
+Each line segment must have:
+
+- Two 3D endpoints
+- Direction
+- Length
+- Movement speed
+- Phase
+- Low affinity
+- Mid affinity
+- High affinity
+- Brightness
+- Random seed
+
+Base movement:
+
+- Lines drift through depth
+- Some lines move toward the camera
+- Different lines have different orientations
+- The complete lattice must not translate or rotate as one rigid object
+
+Low reaction:
+
+- Low-sensitive segments increase length individually
+- Some move faster through depth
+- Some become temporarily thicker if technically possible without an external library
+- If WebGL line width is unreliable, use brightness and length instead
+
+Mid reaction:
+
+- Mid-sensitive segments bend through endpoint movement
+- Change individual orientation
+- Add local directional waves
+- Do not rotate the entire line field
+
+High reaction:
+
+- Individual segments flash briefly
+- A changing subset becomes brighter
+- Add short streak-like velocity changes
+- Avoid full-screen flashes
+
+Density options:
+
+- Low: approximately 300 segments
+- Medium: approximately 800 segments
+- High: approximately 1,500 segments
+
+NEW TEMPLATE 7: WIREFRAME BLOOM
+
+Create layered wireframe geometric forms unfolding through 3D space.
+
+Use a controlled number of wireframe objects built from geometry edges.
+
+Possible building blocks:
+
+- THREE.EdgesGeometry
+- LineSegments
+- Ring-like geometric layers
+- Polyhedral wireframes
+- Nested geometric shells
+
+Do not render hundreds of separate React components.
+
+A THREE.Group containing a controlled number of Three.js objects is acceptable.
+
+Base structure:
+
+- Several wireframe forms occupy different depths
+- Forms move, rotate, and deform independently
+- Forms should overlap visually without becoming a single rigid object
+- The result should feel geometric and architectural
+- Avoid looking like one spinning logo
+
+Low reaction:
+
+- Low-sensitive forms expand locally
+- Some wireframe layers thicken visually through brightness
+- Some move forward or backward independently
+- Do not scale every form together
+
+Mid reaction:
+
+- Individual forms twist, rotate, or distort at different rates
+- Different layers react with different phases and directions
+- Avoid rotating the root group as one object
+
+High reaction:
+
+- Individual edges brighten
+- Selected forms briefly become more visible
+- Add restrained flicker to changing layers
+- Avoid complete-canvas flashing
+
+Density options should control geometric complexity:
+
+- Low: fewer wireframe layers and lower segment counts
+- Medium: balanced complexity
+- High: more layers and segments while remaining smooth
+
+SHARED AUDIO PRINCIPLE
+
+Continue using exactly three audio bands:
+
+Low:
+20 Hz to 250 Hz
+
+Mid:
+250 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+Every template must obey these rules:
+
+- Individual elements react differently
+- Elements have different frequency affinities
+- No global scene scaling as the main Low reaction
+- No global scene rotation as the main Mid reaction
+- No complete-canvas flash as the main High reaction
+- Setting one influence to 0% completely disables that band's reaction
+- Resting animation continues when all influence values are 0%
+
+SHARED CONTROLS
+
+Preserve:
+
+- Low Influence
+- Mid Influence
+- High Influence
+- Particle Density
+- Motion Speed
+- Particle Size
+- Depth
+- Glow
+- Palette
+- Reset Audio
+- Reset Visuals
+
+Rename Particle Density to Visual Density because some templates use cubes, lines, or geometry rather than particles.
+
+Rename Particle Size to Element Size because it must apply to:
+
+- Point size
+- Cube scale
+- Polyhedron scale
+- Line length or visual intensity
+- Wireframe form scale
+
+Update labels, types, and descriptions consistently.
+
+Do not leave old misleading labels in the interface.
+
+PALETTES
+
+All seven templates must support:
+
+- Cyan Violet
+- Monochrome
+- Ember
+
+Do not hardcode a single colour palette inside the new templates.
+
+KALEIDOSCOPE MODE
+
+Add a global Kaleidoscope toggle inside the Color & Post section.
+
+This is not a template.
+
+It is a post-processing mode applied to the final rendered image of whichever template is active.
+
+Requirements:
+
+- Toggle label: Kaleidoscope
+- Default: Off
+- When Off, render the scene normally
+- When On, display the active template through a kaleidoscope-style mirrored angular effect
+- The underlying template animation and audio reactions must continue normally
+- It must work with all seven templates
+- It must appear in live preview
+- It must appear in WebM recording
+- It must not create a second visible canvas
+
+IMPLEMENTATION
+
+Implement Kaleidoscope using a WebGL post-processing pass.
+
+Do not duplicate the scene into multiple physical copies.
+
+Do not create multiple cameras arranged in a circle.
+
+Do not use CSS transforms over the canvas.
+
+Use this rendering model:
+
+1. Render the active Three.js scene into a WebGLRenderTarget
+2. Render a full-screen triangle or quad
+3. Use a custom fragment shader to sample the render target texture
+4. Convert UV coordinates around the image centre into polar coordinates
+5. Divide the angle into mirrored segments
+6. Fold alternating segments to create the kaleidoscope reflection
+7. Sample the original rendered image using the transformed coordinates
+
+Use a restrained default of 8 mirrored segments.
+
+Add one additional control visible only when Kaleidoscope is enabled:
+
+Kaleidoscope Segments:
+- Options: 4, 6, 8, 10, 12
+- Default: 8
+
+Do not add more kaleidoscope controls yet.
+
+The effect should resemble a classic video-editor kaleidoscope effect, not merely mirror the screen once.
+
+PERSISTENT OUTPUT CANVAS
+
+The final post-processed result must still be drawn onto the existing renderer canvas.
+
+The recording system uses captureStream() on this canvas.
+
+Therefore:
+
+- Normal mode must render directly to the visible canvas
+- Kaleidoscope mode must render the final shader output to the same visible canvas
+- Recording must capture the kaleidoscope result automatically
+- Do not replace the renderer canvas while switching the toggle
+
+POST-PROCESSING RESOURCES
+
+Create and reuse:
+
+- One WebGLRenderTarget
+- One post-process scene
+- One orthographic camera
+- One full-screen geometry
+- One kaleidoscope ShaderMaterial
+
+Resize the render target when the preview size changes.
+
+Do not recreate the render target every frame.
+
+Dispose all post-processing resources during final renderer cleanup.
+
+Do not dispose and rebuild them every time the Kaleidoscope toggle changes.
+
+PERFORMANCE
+
+- Keep one persistent renderer
+- Keep one persistent visible canvas
+- Keep one animation loop
+- Keep one ResizeObserver
+- Use InstancedMesh for repeated solid geometry
+- Use LineSegments for line templates
+- Use BufferGeometry and typed arrays
+- Avoid one Mesh or Line object per element
+- Avoid React state updates in requestAnimationFrame
+- Avoid new arrays and objects every frame
+- Cap devicePixelRatio
+- Keep Medium density smooth on an ordinary laptop
+- Kaleidoscope mode should remain usable at Medium density
+
+RECORDING
+
+Test recording with:
+
+- Kaleidoscope Off
+- Kaleidoscope On
+- A point-based template
+- Cube Swarm
+- Laser Lattice
+- Wireframe Bloom
+
+The downloaded WebM must show exactly what the user saw in the preview.
+
+Template selection and Kaleidoscope settings must remain disabled while recording.
+
+Do not allow the visual mode to change halfway through a recording.
+
+CLEANUP
+
+When switching templates:
+
+- Dispose only the old template-owned resources
+- Keep shared renderer and kaleidoscope resources alive
+
+When the complete renderer unmounts:
+
+- Cancel requestAnimationFrame
+- Disconnect ResizeObserver
+- Dispose active template
+- Dispose render target
+- Dispose post-processing geometry
+- Dispose post-processing material
+- Dispose renderer
+- Remove renderer canvas
+- Remove event listeners
+
+VALIDATION
+
+Test:
+
+1. Switch repeatedly between all seven templates.
+2. Confirm each template is visibly distinct while audio is paused.
+3. Confirm Cube Swarm renders cubes, not point sprites.
+4. Confirm Polyhedron Storm renders angular geometry.
+5. Confirm Laser Lattice is built from line segments.
+6. Confirm Wireframe Bloom is visibly made from wireframe geometry.
+7. Test Low, Mid, and High independently at 200% on every new template.
+8. Confirm individual objects react rather than the entire scene.
+9. Toggle Kaleidoscope on every template.
+10. Change segments between 4, 6, 8, 10, and 12.
+11. Confirm the active visual remains animated and audio reactive.
+12. Confirm there is only one visible canvas.
+13. Record with Kaleidoscope enabled.
+14. Confirm preview and downloaded WebM include the effect.
+15. Disable Kaleidoscope and confirm normal rendering returns immediately.
+16. Switch templates repeatedly with Kaleidoscope enabled.
+17. Confirm no black frames, duplicate renderers, stale textures, or WebGL errors.
+18. Refresh and repeat.
+19. Run TypeScript checks.
+20. Fix all runtime errors.
+
+After implementation, explain:
+
+- Which files changed
+- How the template interface was generalised beyond THREE.Points
+- How Cube Swarm uses InstancedMesh
+- How Polyhedron Storm uses multiple instanced geometry types
+- How Laser Lattice uses LineSegments
+- How Wireframe Bloom is constructed
+- How the kaleidoscope shader transforms screen coordinates
+- How the final effect remains on the existing recording canvas
+- How render targets and template resources are cleaned up

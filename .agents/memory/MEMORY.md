@@ -1,2 +1,2 @@
 - [WebGL & audio singletons](webgl-audio-singletons.md) — guard AudioContext source + WebGLRenderer against StrictMode/HMR remount; screenshot browser has no WebGL.
-- [Visual template system](visual-template-system.md) — multi-template 3D shares ONE renderer, hot-swap only Points; GLSL ES 1.0 forbids dynamic uniform-array indexing (use constant-bound loop).
+- [Visual template system](visual-template-system.md) — one shared renderer/canvas, hot-swap one Object3D root; shaders <=16 vertex attrs or silent link fail; recorded post-pass must end on canvas.

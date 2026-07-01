@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { PaletteName, ParticleVisualSettings } from "@/types/visualizer";
+import type { PaletteName, ParticleVisualSettings, DensityLevel } from "@/types/visualizer";
 import type { VisualTemplateId } from "@/visuals/types";
 
 // Predictable colours — bypass sRGB working-space conversion so palette hex
@@ -13,7 +13,9 @@ export const BASE_HALF_D = 55;  // half depth at 100 % depth setting
 export const BASE_HALF_H = 52;  // half height of the volume (world units)
 
 // ─── Palettes ────────────────────────────────────────────────────────────────
-// Each palette is three colours blended across each particle's colorMix.
+// Each palette is three colours blended across each element's colorMix. Cyan
+// Violet, Monochrome and Ember are the core three; the rest are extras. Every
+// template reads these — no template hardcodes its own colours.
 export const PALETTES: Record<PaletteName, [number, number, number]> = {
   cyanViolet: [0x22d3ee, 0x8b5cf6, 0xec4899],
   monochrome: [0xffffff, 0xcbd5e1, 0x64748b],
@@ -29,21 +31,22 @@ export const PALETTES: Record<PaletteName, [number, number, number]> = {
 // ─── Shared uniforms ──────────────────────────────────────────────────────────
 // One set of uniform *objects* is created per Visualizer mount and shared by
 // reference into every template material, so updating a value here updates it
-// for whichever template is active.
+// for whichever template is active. CPU-driven templates (cubes, polyhedra,
+// wireframes) read the same objects directly each frame.
 
 export interface SharedUniforms {
-  uTime:         { value: number };
-  uSpeed:        { value: number };
-  uParticleSize: { value: number };
-  uPixelScale:   { value: number };
-  uLow:          { value: number };
-  uMid:          { value: number };
-  uHigh:         { value: number };
-  uGlow:         { value: number };
-  uVolume:       { value: THREE.Vector3 };
-  uColorA:       { value: THREE.Color };
-  uColorB:       { value: THREE.Color };
-  uColorC:       { value: THREE.Color };
+  uTime:        { value: number };
+  uSpeed:       { value: number };
+  uElementSize: { value: number };
+  uPixelScale:  { value: number };
+  uLow:         { value: number };
+  uMid:         { value: number };
+  uHigh:        { value: number };
+  uGlow:        { value: number };
+  uVolume:      { value: THREE.Vector3 };
+  uColorA:      { value: THREE.Color };
+  uColorB:      { value: THREE.Color };
+  uColorC:      { value: THREE.Color };
 }
 
 export function createSharedUniforms(
@@ -52,18 +55,18 @@ export function createSharedUniforms(
 ): SharedUniforms {
   const [a, b, c] = PALETTES[visual.palette];
   return {
-    uTime:         { value: 0 },
-    uSpeed:        { value: visual.speed / 100 },
-    uParticleSize: { value: visual.particleSize / 100 },
-    uPixelScale:   { value: 600 },
-    uLow:          { value: 0 },
-    uMid:          { value: 0 },
-    uHigh:         { value: 0 },
-    uGlow:         { value: visual.glow / 100 },
-    uVolume:       { value: new THREE.Vector3(halfW, halfH, halfD) },
-    uColorA:       { value: new THREE.Color(a) },
-    uColorB:       { value: new THREE.Color(b) },
-    uColorC:       { value: new THREE.Color(c) },
+    uTime:        { value: 0 },
+    uSpeed:       { value: visual.speed / 100 },
+    uElementSize: { value: visual.elementSize / 100 },
+    uPixelScale:  { value: 600 },
+    uLow:         { value: 0 },
+    uMid:         { value: 0 },
+    uHigh:        { value: 0 },
+    uGlow:        { value: visual.glow / 100 },
+    uVolume:      { value: new THREE.Vector3(halfW, halfH, halfD) },
+    uColorA:      { value: new THREE.Color(a) },
+    uColorB:      { value: new THREE.Color(b) },
+    uColorC:      { value: new THREE.Color(c) },
   };
 }
 
@@ -76,25 +79,28 @@ export interface AudioLevels {
 }
 
 export interface TemplateCreateArgs {
-  count:  number;
-  halfW:  number;
-  halfH:  number;
-  halfD:  number;
-  shared: SharedUniforms;
+  /** Visual density preset — each template maps it to its own element count. */
+  density: DensityLevel;
+  halfW:   number;
+  halfH:   number;
+  halfD:   number;
+  shared:  SharedUniforms;
 }
 
 /**
  * A live template instance. The host owns the renderer/scene/camera/loop; each
- * runtime owns exactly one THREE.Points (geometry + material) plus any private
- * CPU state (e.g. moving attractors).
+ * runtime owns exactly one THREE.Object3D root (which may be Points, an
+ * InstancedMesh, LineSegments, or a Group of children) plus any private CPU
+ * state (e.g. moving attractors, per-instance buffers).
  */
 export interface TemplateRuntime {
-  points: THREE.Points;
+  /** The single object added to / removed from the shared scene. */
+  root: THREE.Object3D;
   /** Per-frame hook. Shared uniforms (time, audio, speed…) are already set. */
   onFrame?(time: number, dt: number, audio: AudioLevels): void;
   /** Called on resize / depth change with the new volume half-extents. */
   onFraming?(halfW: number, halfH: number, halfD: number): void;
-  /** Dispose geometry + material. Called on template/density switch + unmount. */
+  /** Dispose every geometry, material and template-owned GPU resource. */
   dispose(): void;
 }
 
@@ -109,7 +115,7 @@ export interface VisualTemplate {
 export const GLSL_HEADER = /* glsl */ `
   uniform float uTime;
   uniform float uSpeed;
-  uniform float uParticleSize;
+  uniform float uElementSize;
   uniform float uPixelScale;
   uniform float uLow;
   uniform float uMid;
@@ -149,23 +155,38 @@ export const FRAGMENT_SHADER = /* glsl */ `
   }
 `;
 
+/** Flat fragment shader for line segments (no gl_PointCoord). */
+export const LINE_FRAGMENT_SHADER = /* glsl */ `
+  precision mediump float;
+
+  varying vec3  vColor;
+  varying float vOpacity;
+
+  void main() {
+    if (vOpacity <= 0.002) discard;
+    gl_FragColor = vec4(vColor, vOpacity);
+  }
+`;
+
 /**
  * Build a ShaderMaterial from a template-specific vertex body (its attributes +
  * main()). The body may use everything declared in GLSL_HEADER plus the
  * CAM_NEAR constant. Shared uniforms are referenced by identity so host updates
- * propagate; `extra` adds template-private uniforms.
+ * propagate; `extra` adds template-private uniforms. `fragmentShader` defaults
+ * to the point-sprite shader; line templates pass LINE_FRAGMENT_SHADER.
  */
 export function makeMaterial(
   vertexBody: string,
   shared: SharedUniforms,
   extra: Record<string, THREE.IUniform> = {},
+  fragmentShader: string = FRAGMENT_SHADER,
 ): THREE.ShaderMaterial {
   const vertexShader =
     `const float CAM_NEAR = ${CAM_MARGIN.toFixed(1)};\n` + GLSL_HEADER + "\n" + vertexBody;
   return new THREE.ShaderMaterial({
     uniforms:       { ...shared, ...extra } as Record<string, THREE.IUniform>,
     vertexShader,
-    fragmentShader: FRAGMENT_SHADER,
+    fragmentShader,
     transparent:    true,
     depthWrite:     false,
     depthTest:      false,
@@ -194,4 +215,22 @@ export function randomAffinities(): [number, number, number] {
 /** Utility to register a Float32 attribute on a geometry. */
 export function setF32(geo: THREE.BufferGeometry, name: string, arr: Float32Array, itemSize: number) {
   geo.setAttribute(name, new THREE.BufferAttribute(arr, itemSize));
+}
+
+/**
+ * CPU-side equivalent of the GLSL paletteColor(): blend three palette colours
+ * across t∈[0,1]. Writes into `out` (reused each frame to avoid allocation).
+ */
+export function paletteMix(
+  t: number, a: THREE.Color, b: THREE.Color, c: THREE.Color, out: THREE.Color,
+): THREE.Color {
+  if (t < 0.5) out.copy(a).lerp(b, t * 2);
+  else out.copy(b).lerp(c, (t - 0.5) * 2);
+  return out;
+}
+
+/** Positive modulo wrap of v into [-half, half]. */
+export function wrap(v: number, half: number): number {
+  const s = 2 * half;
+  return (((v + half) % s) + s) % s - half;
 }

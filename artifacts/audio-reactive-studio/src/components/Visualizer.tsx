@@ -4,7 +4,6 @@ import {
   type VisualizerSettings,
   type ParticleVisualSettings,
   type PaletteName,
-  DENSITY_COUNTS,
 } from "@/types/visualizer";
 import type { VisualTemplateId } from "@/visuals/types";
 import {
@@ -22,10 +21,14 @@ export interface VisualizerProps {
   high: number;
   /** Per-band influence percentages (0–200). */
   settings: VisualizerSettings;
-  /** Visual styling settings (density, speed, size, depth, glow, palette). */
+  /** Visual styling settings (density, speed, element size, depth, glow, palette). */
   visualSettings: ParticleVisualSettings;
   /** Which visual template to render. Changing this hot-swaps the geometry. */
   templateId: VisualTemplateId;
+  /** Kaleidoscope post-processing on/off (mirrors the scene into radial wedges). */
+  kaleidoscope: boolean;
+  /** Number of mirrored wedges when kaleidoscope is on. */
+  kaleidoscopeSegments: number;
   /**
    * Called with the live WebGL canvas when the renderer is ready, and with null
    * when it is torn down. Lets the recording workflow capture the exact canvas.
@@ -42,36 +45,78 @@ function expSmooth(current: number, target: number): number {
   return current + (target - current) * coeff;
 }
 
+// Fullscreen kaleidoscope pass: fold the rendered scene into N mirrored wedges.
+const POST_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`;
+const POST_FRAGMENT = /* glsl */ `
+  precision highp float;
+  uniform sampler2D tDiffuse;
+  uniform float uSegments;
+  uniform vec2  uResolution;
+  varying vec2 vUv;
+
+  void main() {
+    float aspect = uResolution.x / max(uResolution.y, 1.0);
+    vec2 p = vUv - 0.5;
+    p.x *= aspect;
+
+    float r = length(p);
+    float a = atan(p.y, p.x);
+
+    float seg = 6.2831853071 / uSegments;
+    a = mod(a, seg);
+    a = abs(a - seg * 0.5);   // mirror inside each wedge for a seamless fold
+
+    vec2 dir = vec2(cos(a), sin(a));
+    vec2 q = dir * r;
+    q.x /= aspect;
+    vec2 uv = q + 0.5;        // MirroredRepeat wrapping keeps samples continuous
+
+    gl_FragColor = texture2D(tDiffuse, uv);
+  }
+`;
+
 /**
  * Shared 3D host: owns the single WebGLRenderer, scene, camera, animation loop,
- * ResizeObserver and canvas. The active template (particle-field / orbital-swarm
- * / pulse-tunnel) plugs in its own THREE.Points, shader and reactions. Switching
- * template or density disposes the old geometry/material and swaps in the new one
- * WITHOUT recreating the renderer, loop, observer, WebGL context or canvas — so
- * audio playback and the recording capture stream are never interrupted.
+ * ResizeObserver, kaleidoscope post-processing pipeline and canvas. The active
+ * template plugs in exactly one THREE.Object3D root (Points, InstancedMesh,
+ * LineSegments or a Group). Switching template or density disposes the old root
+ * and swaps in the new one WITHOUT recreating the renderer, loop, observer,
+ * WebGL context, render target or canvas — so audio playback and the recording
+ * capture stream are never interrupted.
  */
 export function Visualizer({
-  low, mid, high, settings, visualSettings, templateId, onCanvasReady,
+  low, mid, high, settings, visualSettings, templateId,
+  kaleidoscope, kaleidoscopeSegments, onCanvasReady,
 }: VisualizerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
 
   // Read callbacks / props through refs so the single-run effect never restarts.
-  const onCanvasReadyRef  = useRef(onCanvasReady);
-  const lowRef            = useRef(low);
-  const midRef            = useRef(mid);
-  const highRef           = useRef(high);
-  const settingsRef       = useRef(settings);
-  const visualSettingsRef = useRef(visualSettings);
-  const templateIdRef     = useRef(templateId);
+  const onCanvasReadyRef        = useRef(onCanvasReady);
+  const lowRef                  = useRef(low);
+  const midRef                  = useRef(mid);
+  const highRef                 = useRef(high);
+  const settingsRef             = useRef(settings);
+  const visualSettingsRef       = useRef(visualSettings);
+  const templateIdRef           = useRef(templateId);
+  const kaleidoscopeRef         = useRef(kaleidoscope);
+  const kaleidoscopeSegmentsRef = useRef(kaleidoscopeSegments);
 
-  onCanvasReadyRef.current  = onCanvasReady;
-  lowRef.current            = low;
-  midRef.current            = mid;
-  highRef.current           = high;
-  settingsRef.current       = settings;
-  visualSettingsRef.current = visualSettings;
-  templateIdRef.current     = templateId;
+  onCanvasReadyRef.current        = onCanvasReady;
+  lowRef.current                  = low;
+  midRef.current                  = mid;
+  highRef.current                 = high;
+  settingsRef.current             = settings;
+  visualSettingsRef.current       = visualSettings;
+  templateIdRef.current           = templateId;
+  kaleidoscopeRef.current         = kaleidoscope;
+  kaleidoscopeSegmentsRef.current = kaleidoscopeSegments;
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -104,13 +149,39 @@ export function Visualizer({
     // ── Shared uniforms (referenced by every template material) ─────────────
     const shared = createSharedUniforms(visualSettingsRef.current, halfW, halfH, halfD);
 
+    // ── Kaleidoscope post-processing pipeline (persistent) ──────────────────
+    const renderTarget = new THREE.WebGLRenderTarget(1, 1, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+    renderTarget.texture.wrapS = THREE.MirroredRepeatWrapping;
+    renderTarget.texture.wrapT = THREE.MirroredRepeatWrapping;
+    renderTarget.texture.generateMipmaps = false;
+
+    const postScene  = new THREE.Scene();
+    const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const postGeometry = new THREE.PlaneGeometry(2, 2);
+    const postMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse:    { value: renderTarget.texture },
+        uSegments:   { value: kaleidoscopeSegmentsRef.current },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+      },
+      vertexShader:   POST_VERTEX,
+      fragmentShader: POST_FRAGMENT,
+      depthTest:  false,
+      depthWrite: false,
+    });
+    const postQuad = new THREE.Mesh(postGeometry, postMaterial);
+    postScene.add(postQuad);
+
     // ── Active template runtime ──────────────────────────────────────────────
     let currentTemplate = templateIdRef.current;
     let currentDensity  = visualSettingsRef.current.density;
     let runtime: TemplateRuntime = getTemplate(currentTemplate).create({
-      count: DENSITY_COUNTS[currentDensity], halfW, halfH, halfD, shared,
+      density: currentDensity, halfW, halfH, halfD, shared,
     });
-    scene.add(runtime.points);
+    scene.add(runtime.root);
 
     // ── Resize / depth framing ──────────────────────────────────────────────
     function applyFraming(): void {
@@ -137,6 +208,12 @@ export function Visualizer({
       const fovRad = (FOV * Math.PI) / 180;
       shared.uPixelScale.value = renderer.domElement.height / (2 * Math.tan(fovRad / 2));
 
+      // Match the render target to the drawing-buffer size, and give the post
+      // shader the canvas aspect for correct radial folding.
+      const dpr = renderer.getPixelRatio();
+      renderTarget.setSize(Math.max(1, Math.floor(width * dpr)), Math.max(1, Math.floor(height * dpr)));
+      postMaterial.uniforms.uResolution.value.set(width, height);
+
       runtime.onFraming?.(halfW, halfH, halfD);
     }
     applyFraming();
@@ -144,16 +221,17 @@ export function Visualizer({
     const ro = new ResizeObserver(() => applyFraming());
     ro.observe(wrapper);
 
-    // Rebuild the active template (new geometry/material, dispose old). Used for
-    // both template switches and density changes — never touches renderer/loop.
+    // Rebuild the active template (new root/geometry/material, dispose old). Used
+    // for both template switches and density changes — never touches renderer,
+    // loop, render target or canvas.
     function rebuildTemplate(): void {
       const old = runtime;
-      scene.remove(old.points);
+      scene.remove(old.root);
       old.dispose();
       runtime = getTemplate(currentTemplate).create({
-        count: DENSITY_COUNTS[currentDensity], halfW, halfH, halfD, shared,
+        density: currentDensity, halfW, halfH, halfD, shared,
       });
-      scene.add(runtime.points);
+      scene.add(runtime.root);
       runtime.onFraming?.(halfW, halfH, halfD);
     }
 
@@ -202,12 +280,12 @@ export function Visualizer({
       smoothedMid  = expSmooth(smoothedMid,  tMid);
       smoothedHigh = expSmooth(smoothedHigh, tHigh);
 
-      shared.uLow.value          = smoothedLow;
-      shared.uMid.value          = smoothedMid;
-      shared.uHigh.value         = smoothedHigh;
-      shared.uSpeed.value        = vs.speed / 100;
-      shared.uParticleSize.value = vs.particleSize / 100;
-      shared.uGlow.value         = vs.glow / 100;
+      shared.uLow.value         = smoothedLow;
+      shared.uMid.value         = smoothedMid;
+      shared.uHigh.value        = smoothedHigh;
+      shared.uSpeed.value       = vs.speed / 100;
+      shared.uElementSize.value = vs.elementSize / 100;
+      shared.uGlow.value        = vs.glow / 100;
 
       const now = performance.now();
       const dt  = Math.min(0.05, (now - lastTime) / 1000);
@@ -219,7 +297,19 @@ export function Visualizer({
       audioLevels.high = smoothedHigh;
       runtime.onFrame?.(shared.uTime.value, dt, audioLevels);
 
-      renderer.render(scene, camera);
+      // Render straight to the canvas, or through the kaleidoscope fold. Either
+      // way the final image lands on renderer.domElement, so captureStream() keeps
+      // recording exactly what the user sees.
+      if (kaleidoscopeRef.current) {
+        postMaterial.uniforms.uSegments.value = Math.max(2, kaleidoscopeSegmentsRef.current);
+        renderer.setRenderTarget(renderTarget);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        renderer.render(postScene, postCamera);
+      } else {
+        renderer.setRenderTarget(null);
+        renderer.render(scene, camera);
+      }
       rafId = requestAnimationFrame(animate);
     }
     rafId = requestAnimationFrame(animate);
@@ -229,8 +319,11 @@ export function Visualizer({
       onCanvasReadyRef.current?.(null);
       cancelAnimationFrame(rafId);
       ro.disconnect();
-      scene.remove(runtime.points);
+      scene.remove(runtime.root);
       runtime.dispose();
+      renderTarget.dispose();
+      postGeometry.dispose();
+      postMaterial.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       if (renderer.domElement.parentNode === wrapper) {

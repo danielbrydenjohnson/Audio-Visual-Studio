@@ -8,6 +8,7 @@ import {
   randomAffinities,
   setF32,
 } from "@/visuals/shared";
+import { DENSITY_COUNTS } from "@/types/visualizer";
 
 /**
  * PARTICLE FIELD — free-floating particles drifting through an open 3D volume.
@@ -61,7 +62,7 @@ const VERTEX_BODY = /* glsl */ `
     float dist = max(-mv.z, 0.001);
     float depthF = clamp((uVolume.z * 2.0 + CAM_NEAR - dist) / (uVolume.z * 2.0), 0.12, 1.0);
 
-    float size = aBaseSize * uParticleSize * (1.0 + low * 0.9 + sparkle * 1.5);
+    float size = aBaseSize * uElementSize * (1.0 + low * 0.9 + sparkle * 1.5);
     gl_PointSize = clamp(size * uPixelScale / dist, 1.0, 64.0);
     gl_Position = projectionMatrix * mv;
 
@@ -74,7 +75,8 @@ const VERTEX_BODY = /* glsl */ `
   }
 `;
 
-function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
+function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
+  const count = DENSITY_COUNTS[density];
   const position  = new Float32Array(count * 3);
   const velocity  = new Float32Array(count * 3);
   const baseSize  = new Float32Array(count);
@@ -132,7 +134,7 @@ function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): Temp
   points.frustumCulled = false;
 
   return {
-    points,
+    root: points,
     dispose() {
       geometry.dispose();
       material.dispose();
