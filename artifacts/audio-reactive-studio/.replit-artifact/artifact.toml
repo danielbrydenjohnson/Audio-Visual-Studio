@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Audio Reactive Studio"
+version = "1.0.0"
+id = "artifacts/audio-reactive-studio"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24045
+
+[services.development]
+run = "pnpm --filter @workspace/audio-reactive-studio run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/audio-reactive-studio", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/audio-reactive-studio/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24045"
+BASE_PATH = "/"
