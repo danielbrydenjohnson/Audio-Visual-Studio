@@ -1,0 +1,172 @@
+Debug the visual template system. Do not add new features or redesign anything.
+
+The template selector exists, but Particle Field, Orbital Swarm, and Pulse Tunnel do not appear to work correctly or may not be wired into the active Three.js renderer.
+
+Inspect the actual current code before changing it.
+
+TRACE THE COMPLETE DATA FLOW
+
+Verify the selected template flows correctly through:
+
+1. The template selector in the controls
+2. State in App.tsx
+3. Props passed to the Three.js visual component
+4. The active template reference inside the renderer
+5. Template initialization
+6. Template-specific per-frame update logic
+7. Template disposal when switching
+
+Do not assume this wiring exists just because the types and files exist.
+
+LIKELY FAILURE MODES TO CHECK
+
+Check specifically for:
+
+- The selector changing only the displayed label
+- selectedTemplate not being passed into the renderer
+- A stale closure reading only the initial template
+- A selected-template ref not being updated
+- A useEffect with an empty dependency array that never handles template changes
+- The template-switch function never being called
+- The renderer always importing or initializing Particle Field
+- New geometry being created but never added to the scene
+- Old geometry remaining active after switching
+- The animation loop continuing to call the previous template's update function
+- Template modules exporting functions that are never used
+- All templates accidentally sharing the same initialization or update implementation
+- Audio values being passed to Particle Field but not Orbital Swarm or Pulse Tunnel
+- Visual settings being passed to only one template
+- A shader or BufferGeometry attribute mismatch preventing a template from rendering
+- Old material or geometry being disposed after the new template is created
+- Multiple Points objects overlapping and making every template look identical
+
+REQUIRED ARCHITECTURE
+
+There must be one persistent:
+
+- WebGLRenderer
+- renderer canvas
+- scene
+- PerspectiveCamera
+- requestAnimationFrame loop
+- ResizeObserver
+
+The renderer must maintain one active template instance.
+
+When selectedTemplate changes:
+
+1. Dispose the current template instance
+2. Remove its THREE.Points object from the scene
+3. Create the newly selected template instance
+4. Add its THREE.Points object to the scene
+5. Store the new instance as the active template
+6. Continue using the existing animation loop and renderer canvas
+
+The animation loop must call the active template instance's update method every frame.
+
+The active template update method must receive the latest:
+
+- Low audio value
+- Mid audio value
+- High audio value
+- Low Influence
+- Mid Influence
+- High Influence
+- Particle Density
+- Motion Speed
+- Particle Size
+- Depth
+- Glow
+- Palette
+- elapsed time
+- frame delta time
+
+Do not rebuild the entire renderer when only the template changes.
+
+TEMPLATE DIFFERENCE CHECK
+
+Confirm the three templates are genuinely different:
+
+Particle Field:
+- Free-floating particles distributed through open 3D space
+
+Orbital Swarm:
+- Several particle clusters orbiting separate moving attractors
+- Must not use Particle Field positions or movement code
+
+Pulse Tunnel:
+- Particles distributed through a cylindrical tunnel
+- Particles travel toward the camera and recycle behind it
+- Must not use Particle Field positions or movement code
+
+If any template is currently a placeholder or aliases Particle Field, implement its intended distinct initialization and update behaviour.
+
+AUDIO WIRING
+
+For every template, confirm:
+
+- Low, Mid, and High values are received every frame
+- Influence controls are applied every frame
+- Audio reactions affect individual particles
+- Setting all three influences to 0% removes audio reactions
+- Base template movement continues at 0%
+- The entire scene is not globally scaled or rotated
+
+DEBUGGING METHOD
+
+Temporarily add concise console logging for:
+
+- Selected template changing
+- Old template being disposed
+- New template being created
+- Active template ID inside the animation loop
+
+Use throttling or one-time logs. Do not log every animation frame.
+
+Remove temporary logs after confirming the fix.
+
+PRESERVE
+
+Do not break:
+
+- Audio upload
+- Playback
+- Seeking
+- Frequency meters
+- Three-band analysis
+- Influence controls
+- Visual controls
+- Recording
+- WebM preview
+- WebM download
+- The persistent renderer canvas used by captureStream()
+
+VALIDATION
+
+Test:
+
+1. Start on Particle Field.
+2. Switch to Orbital Swarm.
+3. Confirm the geometry and motion visibly change.
+4. Switch to Pulse Tunnel.
+5. Confirm a cylindrical tunnel with forward depth motion appears.
+6. Switch back to Particle Field.
+7. Repeat switching several times.
+8. Confirm there is only one canvas and one THREE.Points object.
+9. Play audio and switch templates.
+10. Confirm the active template reacts immediately.
+11. Record a short clip of each template.
+12. Confirm recording captures the selected template.
+13. Refresh and repeat.
+14. Run TypeScript checks.
+15. Fix all runtime errors.
+
+After fixing it, explain:
+
+- The exact root cause
+- Which files changed
+- How selectedTemplate now reaches the renderer
+- How the active template instance is replaced
+- How the animation loop calls the correct template
+- How audio and visual settings reach every template
+- How old geometry and materials are disposed

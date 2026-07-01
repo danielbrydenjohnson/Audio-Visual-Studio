@@ -30,17 +30,21 @@ const VERTEX_BODY = /* glsl */ `
   attribute float aNode;        // orbit-plane node angle
   attribute float aPhase;
   attribute float aRadialSign;  // +1 / -1 for LOW impulse direction
-  attribute float aMoveSpeed;
-  attribute float aSeed;
-  attribute float aBaseSize;
-  attribute float aBaseOpacity;
-  attribute float aLowAff;
-  attribute float aMidAff;
-  attribute float aHighAff;
+  attribute vec4  aMisc;        // x=moveSpeed, y=seed, z=baseSize, w=baseOpacity
+  attribute vec3  aAff;         // x=low, y=mid, z=high band affinity
   attribute float aSparkleThresh;
   attribute float aColorMix;
 
   void main() {
+    // Unpack scalars packed into vectors (keeps vertex-attribute count ≤ GPU max).
+    float aMoveSpeed  = aMisc.x;
+    float aSeed       = aMisc.y;
+    float aBaseSize   = aMisc.z;
+    float aBaseOpacity = aMisc.w;
+    float aLowAff  = aAff.x;
+    float aMidAff  = aAff.y;
+    float aHighAff = aAff.z;
+
     // Resolve this particle's attractor (constant-index loop — GLSL ES 1.0 safe).
     int idx = int(aAttractor + 0.5);
     vec3 att = vec3(0.0);
@@ -134,13 +138,8 @@ function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): Temp
   const node       = new Float32Array(count);
   const phase      = new Float32Array(count);
   const radialSign = new Float32Array(count);
-  const moveSpeed  = new Float32Array(count);
-  const seed       = new Float32Array(count);
-  const baseSize   = new Float32Array(count);
-  const baseOpac   = new Float32Array(count);
-  const lowAff     = new Float32Array(count);
-  const midAff     = new Float32Array(count);
-  const highAff    = new Float32Array(count);
+  const misc       = new Float32Array(count * 4); // moveSpeed, seed, baseSize, baseOpacity
+  const aff        = new Float32Array(count * 3); // low, mid, high affinity
   const sparkleTh  = new Float32Array(count);
   const colorMix   = new Float32Array(count);
   // position attribute is required by three.js; actual placement is shader-driven.
@@ -155,14 +154,14 @@ function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): Temp
     node[i]       = rand(0, Math.PI * 2);
     phase[i]      = rand(0, Math.PI * 2);
     radialSign[i] = Math.random() < 0.5 ? -1 : 1;
-    moveSpeed[i]  = rand(0.3, 1.2);
-    seed[i]       = rand(0, 1000);
-    baseSize[i]   = rand(0.7, 2.2);
-    baseOpac[i]   = rand(0.4, 0.9);
+    misc[i * 4 + 0] = rand(0.3, 1.2); // moveSpeed
+    misc[i * 4 + 1] = rand(0, 1000);  // seed
+    misc[i * 4 + 2] = rand(0.7, 2.2); // baseSize
+    misc[i * 4 + 3] = rand(0.4, 0.9); // baseOpacity
     sparkleTh[i]  = rand(0.6, 0.94);
     colorMix[i]   = Math.random();
     const [l, m, h] = randomAffinities();
-    lowAff[i] = l; midAff[i] = m; highAff[i] = h;
+    aff[i * 3 + 0] = l; aff[i * 3 + 1] = m; aff[i * 3 + 2] = h;
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -175,13 +174,8 @@ function build({ count, halfW, halfH, halfD, shared }: TemplateCreateArgs): Temp
   setF32(geometry, "aNode",          node,       1);
   setF32(geometry, "aPhase",         phase,      1);
   setF32(geometry, "aRadialSign",    radialSign, 1);
-  setF32(geometry, "aMoveSpeed",     moveSpeed,  1);
-  setF32(geometry, "aSeed",          seed,       1);
-  setF32(geometry, "aBaseSize",      baseSize,   1);
-  setF32(geometry, "aBaseOpacity",   baseOpac,   1);
-  setF32(geometry, "aLowAff",        lowAff,     1);
-  setF32(geometry, "aMidAff",        midAff,     1);
-  setF32(geometry, "aHighAff",       highAff,    1);
+  setF32(geometry, "aMisc",          misc,       4);
+  setF32(geometry, "aAff",           aff,        3);
   setF32(geometry, "aSparkleThresh", sparkleTh,  1);
   setF32(geometry, "aColorMix",      colorMix,   1);
 
