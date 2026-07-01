@@ -21,7 +21,16 @@ export const DEFAULT_SETTINGS: VisualizerSettings = {
 export type DensityLevel = "low" | "medium" | "high";
 
 /** Named colour palette for the particle field. */
-export type PaletteName = "cyanViolet" | "monochrome" | "ember";
+export type PaletteName =
+  | "cyanViolet"
+  | "monochrome"
+  | "ember"
+  | "aurora"
+  | "sunset"
+  | "oceanic"
+  | "plasma"
+  | "neonMint"
+  | "rose";
 
 /**
  * Visual styling settings for the 3D particle field.

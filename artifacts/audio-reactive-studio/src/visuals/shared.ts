@@ -18,6 +18,12 @@ export const PALETTES: Record<PaletteName, [number, number, number]> = {
   cyanViolet: [0x22d3ee, 0x8b5cf6, 0xec4899],
   monochrome: [0xffffff, 0xcbd5e1, 0x64748b],
   ember:      [0xfbbf24, 0xf97316, 0xdc2626],
+  aurora:     [0x34d399, 0x22d3ee, 0x818cf8],
+  sunset:     [0xfacc15, 0xfb7185, 0x8b5cf6],
+  oceanic:    [0x38bdf8, 0x2dd4bf, 0x6366f1],
+  plasma:     [0x6366f1, 0xec4899, 0xf59e0b],
+  neonMint:   [0xa3e635, 0x22d3ee, 0xf0abfc],
+  rose:       [0xfda4af, 0xf43f5e, 0x9f1239],
 };
 
 // ─── Shared uniforms ──────────────────────────────────────────────────────────
