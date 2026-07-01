@@ -1,0 +1,82 @@
+Add editable visual styling controls to the existing Particle Field visual.
+
+Extend the current implementation without rebuilding the audio analysis or audio-reactive mappings.
+
+VISUAL SETTINGS TYPES
+
+Create a separate strongly typed ParticleVisualSettings interface rather than mixing these settings into the existing audio influence settings.
+
+Add sensible default values in the shared visualizer types file.
+
+VISUALIZER CONTROLS
+
+Inside the existing Visualizer section, keep the four audio influence sliders and add:
+
+1. Particle Density
+- Use a select control rather than a continuous slider.
+- Options:
+  - Low: 150 particles
+  - Medium: 300 particles
+  - High: 500 particles
+- Default: Medium.
+
+2. Motion Speed
+- Range: 25% to 200%.
+- Default: 100%.
+- Controls the base particle velocity.
+- It must not multiply the audio-reactive rotational effect unpredictably.
+
+3. Particle Size
+- Range: 50% to 200%.
+- Default: 100%.
+- Scales the resting particle size before audio reactions are applied.
+
+4. Connection Distance
+- Range: 0 to 160 pixels.
+- Default: 90 pixels.
+- At 0, no connection lines should be drawn.
+
+COLOR AND POST CONTROLS
+
+Replace the placeholder content inside Color & Post with:
+
+1. Palette
+- Select control with:
+  - Cyan Violet
+  - Monochrome
+  - Ember
+- Default: Cyan Violet.
+- Define the palettes in code rather than scattering colour values through the drawing loop.
+
+2. Glow
+- Range: 0% to 100%.
+- Default: 25%.
+- Use canvas shadowBlur and shadowColor carefully.
+- Do not apply expensive glow effects to every connection line.
+
+3. Trails
+- Range: 0% to 90%.
+- Default: 0%.
+- At 0%, preserve the existing clean frame clearing.
+- Higher values should leave controlled motion trails by drawing a partially transparent background over the previous frame.
+- Avoid making the visual permanently wash out.
+
+RESET BEHAVIOUR
+
+- Keep the existing audio influence Reset button.
+- Add a separate Reset Visuals button for particle and colour settings.
+- Resetting visuals must not reset the audio influence sliders.
+
+TECHNICAL REQUIREMENTS
+
+- Pass the visual settings into ParticleCanvas through strongly typed props.
+- Avoid React state updates inside requestAnimationFrame.
+- Bridge changing settings into the canvas through refs or another efficient mechanism.
+- When particle density changes, safely add or remove particles without leaking animation frames or resize observers.
+- Preserve the current frequency analysis, audio player, four audio mappings, smoothing, canvas resizing, devicePixelRatio handling, and cleanup.
+- Keep High-frequency flashes restrained even when Glow is high.
+- Ensure the High particle density option remains smooth on an ordinary laptop.
+- Do not add new visual templates, recording, rendering, video export, authentication, database, or backend services yet.
+- Run TypeScript checks and fix any runtime errors.
+
+After implementation, explain which files changed and how each visual control is applied.

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { VisualizerSettings } from "@/types/visualizer";
+import type { VisualizerSettings, ParticleVisualSettings, DensityLevel, PaletteName } from "@/types/visualizer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -11,7 +11,7 @@ interface Particle {
   /** Base radius — never mutated by effects; used as the resting size. */
   radius:     number;
   opacity:    number;
-  /** Index into PALETTE */
+  /** Index into the active palette array. */
   colorIndex: number;
 }
 
@@ -23,15 +23,54 @@ export interface ParticleCanvasProps {
   high: number;
   /** Per-band influence percentages (0–200) from the Controls sidebar. */
   settings: VisualizerSettings;
+  /** Visual styling settings (density, speed, palette, glow, trails, …). */
+  visualSettings: ParticleVisualSettings;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Palettes ─────────────────────────────────────────────────────────────────
+// Defined here — the single source of truth for particle colours.
 
-const PARTICLE_COUNT = 300;
+const PALETTES: Record<PaletteName, readonly string[]> = {
+  cyanViolet: [
+    "#22d3ee", // cyan-400
+    "#06b6d4", // cyan-500
+    "#a855f7", // purple-500
+    "#8b5cf6", // violet-500
+    "#ec4899", // pink-500
+    "#f472b6", // pink-400
+  ],
+  monochrome: [
+    "#f8fafc", // slate-50
+    "#e2e8f0", // slate-200
+    "#cbd5e1", // slate-300
+    "#94a3b8", // slate-400
+    "#64748b", // slate-500
+    "#475569", // slate-600
+  ],
+  ember: [
+    "#fbbf24", // amber-400
+    "#f59e0b", // amber-500
+    "#f97316", // orange-500
+    "#fb923c", // orange-400
+    "#ef4444", // red-500
+    "#dc2626", // red-600
+  ],
+};
 
-/** Max pixel distance before a connecting line is drawn. */
-const CONNECTION_DISTANCE = 90;
-/** Resting line max-alpha (falls off linearly to 0 at CONNECTION_DISTANCE). */
+/** Neutral glow shadow — readable against all three palettes. */
+const GLOW_SHADOW_COLOR = "rgba(255,255,255,0.75)";
+
+// ─── Density → particle count ─────────────────────────────────────────────────
+
+const DENSITY_COUNTS: Record<DensityLevel, number> = {
+  low:    150,
+  medium: 300,
+  high:   500,
+};
+
+// ─── Particle constants ───────────────────────────────────────────────────────
+
+/** Resting line max-alpha (falls off linearly to 0 at connectionDistance). */
 const LINE_MAX_ALPHA = 0.14;
 
 const MAX_SPEED = 0.55;
@@ -43,8 +82,6 @@ const MAX_OPACITY = 0.82;
 
 // ── Per-frame exponential smoothing ──────────────────────────────────────────
 /**
- * Applied every animation frame (~60 fps) to each raw band value.
- *
  * ATTACK  = 0.35 → reaches ~95 % of a new peak in ~8 frames  (~130 ms).
  * RELEASE = 0.055 → decays to ~5 % in ~52 frames (~870 ms).
  */
@@ -52,55 +89,28 @@ const SMOOTHING_ATTACK  = 0.35;
 const SMOOTHING_RELEASE = 0.055;
 
 // ── Sub visual constants ──────────────────────────────────────────────────────
-/** At effectiveSub = 1 → drawn radius = base × (1 + RADIUS_BOOST). */
 const SUB_RADIUS_BOOST  = 0.65;
-/** At effectiveSub = 1 → line alpha × (1 + LINE_ALPHA_BOOST). */
 const SUB_LINE_BOOST    = 2.4;
-/** Additive particle opacity at effectiveSub = 1 (clamped to 1). */
 const SUB_OPACITY_BOOST = 0.2;
 
 // ── Low visual constants ──────────────────────────────────────────────────────
-/**
- * At effectiveLow = 1, draw positions are LOW_SPREAD_MAX × distance-from-centre
- * further out than their resting positions.  Draw positions are then clamped
- * to the canvas bounds — particles never actually leave the canvas.
- * 0.32 → 32 % spread at 100 % influence; 64 % at 200 %.
- */
 const LOW_SPREAD_MAX = 0.32;
 
 // ── Mid visual constants ──────────────────────────────────────────────────────
 /**
  * Rotation speed in radians per frame at effectiveMid = 1.
- * 0.0022 rad/frame ≈ 7.5°/sec — subtle swirl that builds with mid energy.
- * Accumulated in `rotationAngle`; applied only at draw time.
+ * Accumulated from mid energy only — never multiplied by Motion Speed so
+ * the swirl does not become unpredictable when speed is changed.
  */
 const MID_ROT_SPEED = 0.0022;
 
 // ── High visual constants ─────────────────────────────────────────────────────
-/** Additive opacity boost for all particles at effectiveHigh = 1. */
 const HIGH_BRIGHTNESS    = 0.28;
-/** Fraction of particles that may sparkle at effectiveHigh = 1 (per frame). */
 const HIGH_SPARKLE_PROB  = 0.2;
-/** Opacity boost added to a sparkling particle. */
 const HIGH_SPARKLE_BOOST = 0.55;
-/** Radius scale multiplier for sparkling particles. */
 const HIGH_SPARKLE_SCALE = 0.45;
-/**
- * Peak flash overlay max-alpha at effectiveHigh = 1.
- * Applied quadratically so it only appears at genuine peaks, not low rumble.
- * 0.055 × 1² = 0.055; at 200 % influence × smoothed=1 → 0.055 × 4 = 0.22.
- */
+/** Quadratic peak flash — kept restrained even at high glow. */
 const HIGH_FLASH_MAX = 0.055;
-
-// Cyan / purple / pink palette — matches the app's design tokens.
-const PALETTE = [
-  "#22d3ee", // cyan-400
-  "#06b6d4", // cyan-500
-  "#a855f7", // purple-500
-  "#8b5cf6", // violet-500
-  "#ec4899", // pink-500
-  "#f472b6", // pink-400
-] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -108,7 +118,7 @@ function rand(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
-function createParticle(w: number, h: number): Particle {
+function createParticle(w: number, h: number, paletteLength: number): Particle {
   const angle = Math.random() * Math.PI * 2;
   const speed = rand(MIN_SPEED, MAX_SPEED);
   return {
@@ -118,7 +128,7 @@ function createParticle(w: number, h: number): Particle {
     vy:         Math.sin(angle) * speed,
     radius:     rand(MIN_RADIUS, MAX_RADIUS),
     opacity:    rand(MIN_OPACITY, MAX_OPACITY),
-    colorIndex: Math.floor(Math.random() * PALETTE.length),
+    colorIndex: Math.floor(Math.random() * paletteLength),
   };
 }
 
@@ -137,27 +147,29 @@ function expSmooth(current: number, target: number): number {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ParticleCanvas({
-  sub, low, mid, high, settings,
+  sub, low, mid, high, settings, visualSettings,
 }: ParticleCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef  = useRef<HTMLCanvasElement>(null);
 
   /**
-   * Ref bridge — lets the single-run canvas effect always read the latest
-   * prop values without restarting or causing React state updates.
-   * Assigned synchronously during render, before the next RAF tick.
+   * Ref bridge — all props synchronously mirrored into refs so the
+   * single-run canvas effect always reads the latest values without
+   * restarting or causing React state updates.
    */
-  const subRef      = useRef(sub);
-  const lowRef      = useRef(low);
-  const midRef      = useRef(mid);
-  const highRef     = useRef(high);
-  const settingsRef = useRef(settings);
+  const subRef            = useRef(sub);
+  const lowRef            = useRef(low);
+  const midRef            = useRef(mid);
+  const highRef           = useRef(high);
+  const settingsRef       = useRef(settings);
+  const visualSettingsRef = useRef(visualSettings);
 
-  subRef.current      = sub;
-  lowRef.current      = low;
-  midRef.current      = mid;
-  highRef.current     = high;
-  settingsRef.current = settings;
+  subRef.current            = sub;
+  lowRef.current            = low;
+  midRef.current            = mid;
+  highRef.current           = high;
+  settingsRef.current       = settings;
+  visualSettingsRef.current = visualSettings;
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -174,10 +186,11 @@ export function ParticleCanvas({
     let dpr      = 1;
     let particles: Particle[] = [];
 
-    // Pre-allocated draw-position buffers — avoids per-frame heap allocation.
-    // Filled before line drawing; reused for particle drawing.
-    let drawXBuf = new Float32Array(PARTICLE_COUNT);
-    let drawYBuf = new Float32Array(PARTICLE_COUNT);
+    // Draw-position buffers — avoids per-frame heap allocation.
+    // Sized to the maximum possible count; we only read [0..particles.length).
+    const MAX_PARTICLES = DENSITY_COUNTS.high;
+    let drawXBuf = new Float32Array(MAX_PARTICLES);
+    let drawYBuf = new Float32Array(MAX_PARTICLES);
 
     // Per-band smoothed values in [0, 1] — updated at the top of every frame.
     let smoothedSub  = 0;
@@ -195,7 +208,6 @@ export function ParticleCanvas({
       logicalW = rect.width;
       logicalH = rect.height;
 
-      // Assigning canvas.width resets the context transform — re-scale after.
       canvas!.width         = Math.round(logicalW * dpr);
       canvas!.height        = Math.round(logicalH * dpr);
       canvas!.style.width   = `${logicalW}px`;
@@ -206,157 +218,193 @@ export function ParticleCanvas({
     }
 
     // ── Initialise particles ──────────────────────────────────────────────
-    function initParticles(): void {
-      particles = Array.from({ length: PARTICLE_COUNT }, () =>
-        createParticle(logicalW, logicalH),
+    function initParticles(count: number, paletteLength: number): void {
+      particles = Array.from({ length: count }, () =>
+        createParticle(logicalW, logicalH, paletteLength),
       );
-      drawXBuf = new Float32Array(PARTICLE_COUNT);
-      drawYBuf = new Float32Array(PARTICLE_COUNT);
     }
 
     // ── Draw loop ─────────────────────────────────────────────────────────
     function drawFrame(): void {
-      // ── 0. Advance smoothed band values ──────────────────────────────────
+      const vs      = visualSettingsRef.current;
+      const palette = PALETTES[vs.palette];
+
+      // ── 0a. Advance smoothed band values ────────────────────────────────
       smoothedSub  = expSmooth(smoothedSub,  Math.min(1, Math.max(0, subRef.current  / 100)));
       smoothedLow  = expSmooth(smoothedLow,  Math.min(1, Math.max(0, lowRef.current  / 100)));
       smoothedMid  = expSmooth(smoothedMid,  Math.min(1, Math.max(0, midRef.current  / 100)));
       smoothedHigh = expSmooth(smoothedHigh, Math.min(1, Math.max(0, highRef.current / 100)));
 
-      // Apply influence percentages (0 % = off, 100 % = normal, 200 % = double).
       const s             = settingsRef.current;
       const effectiveSub  = smoothedSub  * (s.sub  / 100);
       const effectiveLow  = smoothedLow  * (s.low  / 100);
       const effectiveMid  = smoothedMid  * (s.mid  / 100);
       const effectiveHigh = smoothedHigh * (s.high / 100);
 
-      // ── 0b. Advance accumulated rotation (Mid) ────────────────────────────
+      // ── 0b. Mid rotation accumulation ───────────────────────────────────
+      // Driven by audio energy only — Motion Speed does NOT affect this.
       rotationAngle += effectiveMid * MID_ROT_SPEED;
       if (rotationAngle >= Math.PI * 2) rotationAngle -= Math.PI * 2;
 
-      // Derived frame-level draw scalars.
-      const subRadiusScale  = 1 + effectiveSub  * SUB_RADIUS_BOOST;
-      const subLineScale    = 1 + effectiveSub  * SUB_LINE_BOOST;
-      const subOpacityBump  =     effectiveSub  * SUB_OPACITY_BOOST;
+      // Derived frame-level scalars.
+      const sizeMultiplier  = vs.particleSize / 100;
+      const speedMultiplier = vs.speed / 100;
+      const subRadiusScale  = 1 + effectiveSub * SUB_RADIUS_BOOST;
+      const subLineScale    = 1 + effectiveSub * SUB_LINE_BOOST;
+      const subOpacityBump  =     effectiveSub * SUB_OPACITY_BOOST;
       const highOpacityBump =     effectiveHigh * HIGH_BRIGHTNESS;
       const spread          =     effectiveLow  * LOW_SPREAD_MAX;
 
-      ctx!.clearRect(0, 0, logicalW, logicalH);
+      // ── 0c. Density sync — add / remove particles without RAF restart ───
+      const targetCount = DENSITY_COUNTS[vs.density];
+      if (particles.length < targetCount) {
+        while (particles.length < targetCount) {
+          particles.push(createParticle(logicalW, logicalH, palette.length));
+        }
+      } else if (particles.length > targetCount) {
+        particles.length = targetCount;
+      }
+      const count = particles.length;
+
+      // ── 0d. Clear / trails ──────────────────────────────────────────────
+      if (vs.trails === 0) {
+        ctx!.clearRect(0, 0, logicalW, logicalH);
+      } else {
+        // Draw a partially transparent background to retain a fraction of
+        // the previous frame.  Alpha = (1 - retention); e.g. at trails=50 %
+        // → retain 50 % of previous frame → alpha 0.5.
+        // Trails slider range is 0–90, so max retention = 90 %.
+        const retentionFraction = vs.trails / 100;
+        const clearAlpha        = 1 - retentionFraction;
+        ctx!.globalAlpha = clearAlpha;
+        ctx!.fillStyle   = "#000000";
+        ctx!.fillRect(0, 0, logicalW, logicalH);
+        ctx!.globalAlpha = 1;
+      }
 
       // Canvas centre — used for Low spread and Mid rotation.
       const cx = logicalW * 0.5;
       const cy = logicalH * 0.5;
 
-      // ── 1. Update particle positions (motion only — no draw-effect mutation) ─
-      for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
+      // ── 1. Update particle positions (motion only — no effect mutation) ──
+      for (let i = 0; i < count; i++) {
+        const p = particles[i];
+        // Speed multiplier applied only to position — not to rotationAngle.
+        p.x += p.vx * speedMultiplier;
+        p.y += p.vy * speedMultiplier;
 
         if (p.x - p.radius < 0) {
-          p.x = p.radius;
-          p.vx = Math.abs(p.vx);
+          p.x = p.radius; p.vx = Math.abs(p.vx);
         } else if (p.x + p.radius > logicalW) {
-          p.x = logicalW - p.radius;
-          p.vx = -Math.abs(p.vx);
+          p.x = logicalW - p.radius; p.vx = -Math.abs(p.vx);
         }
         if (p.y - p.radius < 0) {
-          p.y = p.radius;
-          p.vy = Math.abs(p.vy);
+          p.y = p.radius; p.vy = Math.abs(p.vy);
         } else if (p.y + p.radius > logicalH) {
-          p.y = logicalH - p.radius;
-          p.vy = -Math.abs(p.vy);
+          p.y = logicalH - p.radius; p.vy = -Math.abs(p.vy);
         }
       }
 
-      // ── 2. Compute draw positions (Low spread + Mid rotation, draw-time only) ─
+      // ── 2. Compute draw positions (Low spread + Mid rotation) ────────────
       //
-      // Low:  shifts each particle's draw position away from the canvas centre
-      //       proportionally to its distance from centre.  Particle coordinates
-      //       (p.x / p.y) are never changed.
-      //
-      // Mid:  rotates every draw position around the canvas centre by the
-      //       accumulated rotationAngle.  The angle grows with mid energy and
-      //       coasts to a stop when mid drops to 0.  Again, p.x / p.y unchanged.
-      //
-      // Results written into pre-allocated Float32Arrays to avoid GC pressure.
+      // Low:  shifts each draw position away from canvas centre proportional
+      //       to its distance.  p.x / p.y are never changed.
+      // Mid:  rotates every draw position by the accumulated rotationAngle.
+      //       Again, p.x / p.y unchanged.
+      // Results written into pre-allocated Float32Arrays.
       const useRotation = rotationAngle !== 0;
-      for (let i = 0; i < particles.length; i++) {
+      for (let i = 0; i < count; i++) {
         const p = particles[i];
 
-        // Low spread — scale distance from centre.
+        // Low spread.
         let px = cx + (p.x - cx) * (1 + spread);
         let py = cy + (p.y - cy) * (1 + spread);
 
-        // Mid rotation — rotate the (possibly-spread) draw position.
+        // Mid rotation.
         if (useRotation) {
-          const ddx  = px - cx;
-          const ddy  = py - cy;
+          const ddx   = px - cx;
+          const ddy   = py - cy;
           const dist  = Math.sqrt(ddx * ddx + ddy * ddy);
           const angle = Math.atan2(ddy, ddx) + rotationAngle;
           px = cx + Math.cos(angle) * dist;
           py = cy + Math.sin(angle) * dist;
         }
 
-        // Clamp to canvas — prevents High/Low combinations from pushing dots
-        // outside the visible area.
-        const r = p.radius * subRadiusScale;
+        // Clamp so glow/size combos cannot push dots off-screen.
+        const r = p.radius * sizeMultiplier * subRadiusScale;
         drawXBuf[i] = Math.max(r, Math.min(logicalW - r, px));
         drawYBuf[i] = Math.max(r, Math.min(logicalH - r, py));
       }
 
-      // ── 3. Connecting lines ───────────────────────────────────────────────
-      // Uses draw positions so lines connect the visually rendered dots.
-      const lineCdSq      = CONNECTION_DISTANCE * CONNECTION_DISTANCE;
-      const lineAlphaCap  = 0.9;
+      // ── 3. Connecting lines (no shadowBlur — expensive per connection) ───
+      const connDist = vs.connectionDistance;
+      if (connDist > 0) {
+        const lineCdSq   = connDist * connDist;
+        const lineAlphaCap = 0.9;
 
-      for (let i = 0; i < particles.length - 1; i++) {
-        const ax = drawXBuf[i];
-        const ay = drawYBuf[i];
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx     = ax - drawXBuf[j];
-          const dy     = ay - drawYBuf[j];
-          const distSq = dx * dx + dy * dy;
-          if (distSq >= lineCdSq) continue;
+        // Ensure shadow is off for lines.
+        ctx!.shadowBlur = 0;
 
-          const alpha = Math.min(
-            lineAlphaCap,
-            (1 - Math.sqrt(distSq) / CONNECTION_DISTANCE) * LINE_MAX_ALPHA * subLineScale,
-          );
+        for (let i = 0; i < count - 1; i++) {
+          const ax = drawXBuf[i];
+          const ay = drawYBuf[i];
+          for (let j = i + 1; j < count; j++) {
+            const dx     = ax - drawXBuf[j];
+            const dy     = ay - drawYBuf[j];
+            const distSq = dx * dx + dy * dy;
+            if (distSq >= lineCdSq) continue;
 
-          ctx!.globalAlpha  = alpha;
-          ctx!.beginPath();
-          ctx!.moveTo(ax, ay);
-          ctx!.lineTo(drawXBuf[j], drawYBuf[j]);
-          ctx!.strokeStyle = PALETTE[particles[i].colorIndex];
-          ctx!.lineWidth   = 0.6;
-          ctx!.stroke();
+            const alpha = Math.min(
+              lineAlphaCap,
+              (1 - Math.sqrt(distSq) / connDist) * LINE_MAX_ALPHA * subLineScale,
+            );
+
+            ctx!.globalAlpha  = alpha;
+            ctx!.beginPath();
+            ctx!.moveTo(ax, ay);
+            ctx!.lineTo(drawXBuf[j], drawYBuf[j]);
+            ctx!.strokeStyle = palette[particles[i].colorIndex % palette.length];
+            ctx!.lineWidth   = 0.6;
+            ctx!.stroke();
+          }
         }
       }
 
-      // ── 4. Particles ──────────────────────────────────────────────────────
+      // ── 4. Particles (glow applies here only) ────────────────────────────
+      const glowBlur = vs.glow > 0 ? Math.round((vs.glow / 100) * 18) : 0;
+      if (glowBlur > 0) {
+        ctx!.shadowBlur  = glowBlur;
+        ctx!.shadowColor = GLOW_SHADOW_COLOR;
+      } else {
+        ctx!.shadowBlur = 0;
+      }
+
       const sparkleProbability = effectiveHigh * effectiveHigh * HIGH_SPARKLE_PROB;
 
-      for (let i = 0; i < particles.length; i++) {
+      for (let i = 0; i < count; i++) {
         const p = particles[i];
 
-        // High sparkle — random per-particle brightness + size kick.
-        // Probability is quadratic so it only fires visibly at peaks.
+        // High sparkle — quadratic probability so it only fires at peaks.
         const sparkle = (sparkleProbability > 0 && Math.random() < sparkleProbability)
           ? effectiveHigh * HIGH_SPARKLE_BOOST
           : 0;
 
-        const drawRadius  = p.radius * subRadiusScale * (sparkle > 0 ? 1 + sparkle * HIGH_SPARKLE_SCALE : 1);
+        const drawRadius  = p.radius * sizeMultiplier * subRadiusScale
+          * (sparkle > 0 ? 1 + sparkle * HIGH_SPARKLE_SCALE : 1);
         const drawOpacity = Math.min(1, p.opacity + subOpacityBump + highOpacityBump + sparkle);
 
         ctx!.globalAlpha = drawOpacity;
         ctx!.beginPath();
         ctx!.arc(drawXBuf[i], drawYBuf[i], drawRadius, 0, Math.PI * 2);
-        ctx!.fillStyle = PALETTE[p.colorIndex];
+        ctx!.fillStyle = palette[p.colorIndex % palette.length];
         ctx!.fill();
       }
 
       // ── 5. High flash overlay ─────────────────────────────────────────────
-      // Quadratic so it only appears at genuine peaks; rendered after particles
-      // so it brightens the whole scene uniformly.
+      // Disable glow before the flash — flash is a full-canvas rect and must
+      // not be amplified by shadowBlur, even when glow is high.
+      ctx!.shadowBlur = 0;
+
       if (effectiveHigh > 0.01) {
         const flashAlpha = effectiveHigh * effectiveHigh * HIGH_FLASH_MAX;
         ctx!.globalAlpha = flashAlpha;
@@ -374,7 +422,11 @@ export function ParticleCanvas({
 
     // ── Bootstrap ─────────────────────────────────────────────────────────
     applyResize();
-    initParticles();
+    const initialVs = visualSettingsRef.current;
+    initParticles(
+      DENSITY_COUNTS[initialVs.density],
+      PALETTES[initialVs.palette].length,
+    );
     rafId = requestAnimationFrame(drawFrame);
 
     // ── Cleanup ───────────────────────────────────────────────────────────
