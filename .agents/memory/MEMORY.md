@@ -1,0 +1,1 @@
+- [WebGL & audio singletons](webgl-audio-singletons.md) — guard AudioContext source + WebGLRenderer against StrictMode/HMR remount; screenshot browser has no WebGL.

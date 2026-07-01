@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { FrequencyMeters } from "@/components/FrequencyMeters";
-import { ParticleCanvas } from "@/components/ParticleCanvas";
+import { ParticleField } from "@/components/ParticleField";
 import { useFrequencyAnalysis } from "@/hooks/useFrequencyAnalysis";
 import {
   type VisualizerSettings,
@@ -13,7 +13,7 @@ import {
 
 // ─── Shared control styles ────────────────────────────────────────────────────
 
-/** Injected once — drives thumb colour via CSS custom property on each input. */
+/** Injected once — drives thumb colour via a CSS custom property on each input. */
 const THUMB_STYLE = `
   input[type=range]::-webkit-slider-thumb { background: var(--thumb-color, #64748b); }
   input[type=range]::-moz-range-thumb     { background: var(--thumb-color, #64748b); border: 0; }
@@ -68,8 +68,7 @@ function BandSlider({ label, dot, value, onChange }: BandSliderProps) {
 
 // Band dot colours.
 const BAND_DOTS = {
-  sub:  "#22d3ee",
-  low:  "#8b5cf6",
+  low:  "#22d3ee",
   mid:  "#f59e0b",
   high: "#ec4899",
 } as const;
@@ -77,13 +76,13 @@ const BAND_DOTS = {
 // ─── ControlSlider — for visual settings ─────────────────────────────────────
 
 interface ControlSliderProps {
-  label:      string;
-  value:      number;
-  min:        number;
-  max:        number;
-  step?:      number;
-  unit?:      string;
-  onChange:   (v: number) => void;
+  label:    string;
+  value:    number;
+  min:      number;
+  max:      number;
+  step?:    number;
+  unit?:    string;
+  onChange: (v: number) => void;
 }
 
 function ControlSlider({ label, value, min, max, step = 1, unit = "%", onChange }: ControlSliderProps) {
@@ -237,8 +236,7 @@ function App() {
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] -z-10" />
 
           <div className="flex-1 border border-border/40 rounded-xl bg-black shadow-2xl relative overflow-hidden min-h-0">
-            <ParticleCanvas
-              sub={bands.sub}
+            <ParticleField
               low={bands.low}
               mid={bands.mid}
               high={bands.high}
@@ -281,79 +279,36 @@ function App() {
 
           <div className="flex-1 overflow-y-auto p-5 space-y-7">
 
-            {/* ── Visualizer Section ── */}
+            {/* ── Audio Reaction Section ── */}
             <div className="space-y-4">
-              {/* Section header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-3 bg-primary/70 rounded-full" />
-                  <h3 className="text-sm font-medium text-foreground">Visualizer</h3>
+                  <h3 className="text-sm font-medium text-foreground">Audio Reaction</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSettings(DEFAULT_SETTINGS)}
                   className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
-                  title="Reset audio influence sliders to defaults"
+                  title="Reset audio influence to defaults"
                 >
-                  Reset
+                  Reset Audio
                 </button>
               </div>
 
-              {/* Audio influence sliders */}
               <div className="space-y-4">
-                <BandSlider label="Sub Influence" dot={BAND_DOTS.sub}  value={settings.sub}  onChange={v => setSetting("sub",  v)} />
-                <BandSlider label="Low Influence" dot={BAND_DOTS.low}  value={settings.low}  onChange={v => setSetting("low",  v)} />
-                <BandSlider label="Mid Influence" dot={BAND_DOTS.mid}  value={settings.mid}  onChange={v => setSetting("mid",  v)} />
+                <BandSlider label="Low Influence"  dot={BAND_DOTS.low}  value={settings.low}  onChange={v => setSetting("low",  v)} />
+                <BandSlider label="Mid Influence"  dot={BAND_DOTS.mid}  value={settings.mid}  onChange={v => setSetting("mid",  v)} />
                 <BandSlider label="High Influence" dot={BAND_DOTS.high} value={settings.high} onChange={v => setSetting("high", v)} />
-              </div>
-
-              <SectionDivider />
-
-              {/* Particle & motion controls */}
-              <div className="space-y-4">
-                <ControlSelect
-                  label="Particle Density"
-                  value={visualSettings.density}
-                  options={[
-                    { value: "low",    label: "Low — 150 particles" },
-                    { value: "medium", label: "Medium — 300 particles" },
-                    { value: "high",   label: "High — 500 particles" },
-                  ]}
-                  onChange={v => setVisual("density", v as ParticleVisualSettings["density"])}
-                />
-                <ControlSlider
-                  label="Motion Speed"
-                  value={visualSettings.speed}
-                  min={25}
-                  max={200}
-                  unit="%"
-                  onChange={v => setVisual("speed", v)}
-                />
-                <ControlSlider
-                  label="Particle Size"
-                  value={visualSettings.particleSize}
-                  min={50}
-                  max={200}
-                  unit="%"
-                  onChange={v => setVisual("particleSize", v)}
-                />
-                <ControlSlider
-                  label="Connection Distance"
-                  value={visualSettings.connectionDistance}
-                  min={0}
-                  max={160}
-                  unit="px"
-                  onChange={v => setVisual("connectionDistance", v)}
-                />
               </div>
             </div>
 
-            {/* ── Color & Post Section ── */}
+            {/* ── Particle Field Section ── */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-3 bg-chart-2/70 rounded-full" />
-                  <h3 className="text-sm font-medium text-foreground">Color & Post</h3>
+                  <h3 className="text-sm font-medium text-foreground">Particle Field</h3>
                 </div>
                 <button
                   type="button"
@@ -364,6 +319,42 @@ function App() {
                   Reset Visuals
                 </button>
               </div>
+
+              <div className="space-y-4">
+                <ControlSelect
+                  label="Particle Density"
+                  value={visualSettings.density}
+                  options={[
+                    { value: "low",    label: "Low — 750 particles" },
+                    { value: "medium", label: "Medium — 1,500 particles" },
+                    { value: "high",   label: "High — 3,000 particles" },
+                  ]}
+                  onChange={v => setVisual("density", v as ParticleVisualSettings["density"])}
+                />
+                <ControlSlider
+                  label="Motion Speed"
+                  value={visualSettings.speed}
+                  min={25}
+                  max={200}
+                  onChange={v => setVisual("speed", v)}
+                />
+                <ControlSlider
+                  label="Particle Size"
+                  value={visualSettings.particleSize}
+                  min={50}
+                  max={200}
+                  onChange={v => setVisual("particleSize", v)}
+                />
+                <ControlSlider
+                  label="Depth"
+                  value={visualSettings.depth}
+                  min={50}
+                  max={200}
+                  onChange={v => setVisual("depth", v)}
+                />
+              </div>
+
+              <SectionDivider />
 
               <div className="space-y-4">
                 <ControlSelect
@@ -381,30 +372,8 @@ function App() {
                   value={visualSettings.glow}
                   min={0}
                   max={100}
-                  unit="%"
                   onChange={v => setVisual("glow", v)}
                 />
-                <ControlSlider
-                  label="Trails"
-                  value={visualSettings.trails}
-                  min={0}
-                  max={90}
-                  unit="%"
-                  onChange={v => setVisual("trails", v)}
-                />
-              </div>
-            </div>
-
-            {/* ── Output Section (placeholder) ── */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-3 bg-chart-3/70 rounded-full" />
-                <h3 className="text-sm font-medium text-foreground">Output</h3>
-              </div>
-              <div className="h-20 rounded-lg border border-border/40 bg-muted/20 flex items-center justify-center">
-                <span className="text-[11px] text-muted-foreground font-medium">
-                  Resolution & Export
-                </span>
               </div>
             </div>
 

@@ -1,13 +1,20 @@
 import { useState, useRef, useEffect, type RefObject } from "react";
 
+/**
+ * Three-band frequency model.
+ *   Low:  20–200 Hz    — sub-bass, basslines, kick energy
+ *   Mid:  250–4000 Hz  — snares, claps, vocals, synth body, melody
+ *   High: 4000–16000 Hz — hi-hats, cymbals, brightness, transients
+ * Each value is the raw analyser energy, normalised 0–100. These are NEVER
+ * modified by the influence sliders — those apply only inside the renderer.
+ */
 export interface FrequencyBands {
-  sub:  number; // 20–80 Hz,    0–100
-  low:  number; // 80–250 Hz,   0–100
-  mid:  number; // 250–4000 Hz, 0–100
-  high: number; // 4000–16kHz,  0–100
+  low:  number;
+  mid:  number;
+  high: number;
 }
 
-const ZERO_BANDS: FrequencyBands = { sub: 0, low: 0, mid: 0, high: 0 };
+const ZERO_BANDS: FrequencyBands = { low: 0, mid: 0, high: 0 };
 
 const FFT_SIZE = 2048;
 const SMOOTHING = 0.75;
@@ -15,8 +22,7 @@ const SMOOTHING = 0.75;
 interface BandRange { fLow: number; fHigh: number }
 
 const BAND_RANGES: Record<keyof FrequencyBands, BandRange> = {
-  sub:  { fLow: 20,   fHigh: 80    },
-  low:  { fLow: 80,   fHigh: 250   },
+  low:  { fLow: 20,   fHigh: 200   },
   mid:  { fLow: 250,  fHigh: 4000  },
   high: { fLow: 4000, fHigh: 16000 },
 };
@@ -44,13 +50,9 @@ function averageBand(
  * React Strict Mode and Vite HMR both unmount + remount components while the
  * underlying <audio> DOM element survives.  On the re-mount the useRef guards
  * reset to null, so a naive implementation calls createMediaElementSource()
- * a second time and throws:
- *   "HTMLMediaElement already connected to a different MediaElementSourceNode"
- *
- * Storing the {ctx, source} pair in a WeakMap keyed by the HTMLAudioElement
- * solves this: the entry persists across React unmount/remount cycles because
- * WeakMap is module-scoped, and it is automatically GC'd when the element is
- * removed from the DOM (e.g. when the user changes the audio file).
+ * a second time and throws.  Storing the {ctx, source} pair in a module-level
+ * WeakMap keyed by the element survives remounts and is GC'd when the element
+ * leaves the DOM.
  */
 interface AudioGraph {
   ctx:    AudioContext;
@@ -64,13 +66,8 @@ const audioGraphRegistry = new WeakMap<HTMLAudioElement, AudioGraph>();
  * Connects the supplied audio element to a Web Audio analyser and returns
  * live per-band energy values (0–100) updated every animation frame.
  *
- * - AudioContext + MediaElementAudioSourceNode are created lazily on first
- *   play, honouring the browser's autoplay policy.
- * - A module-level WeakMap ensures createMediaElementSource is never called
- *   twice for the same element (safe across HMR / Strict Mode remounts).
- * - The analyser is rebuilt on each effect run; only the source + context
- *   are preserved across remounts.
- * - Cancels the RAF loop and disconnects the analyser on unmount.
+ * When playback pauses the bands are reset to zero so downstream smoothing can
+ * fade audio reactions naturally back to rest.
  */
 export function useFrequencyAnalysis(
   audioRef:  RefObject<HTMLAudioElement | null>,
@@ -78,19 +75,19 @@ export function useFrequencyAnalysis(
 ): FrequencyBands {
   const [bands, setBands] = useState<FrequencyBands>(ZERO_BANDS);
 
-  // Refs for the audio graph — never in state to avoid re-renders.
   const ctxRef      = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode  | null>(null);
   const rafRef      = useRef<number        | null>(null);
   const dataRef     = useRef<Uint8Array<ArrayBuffer> | null>(null);
 
-  // ── Main effect: build graph + run RAF while playing ─────────────────────
   useEffect(() => {
     if (!isPlaying) {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      // Reset to zero so the renderer's release smoothing fades reactions out.
+      setBands(ZERO_BANDS);
       return;
     }
 
@@ -101,7 +98,6 @@ export function useFrequencyAnalysis(
     let graph = audioGraphRegistry.get(audioEl);
 
     if (!graph || graph.ctx.state === "closed") {
-      // Close any previous context (element changed, or context was closed).
       if (ctxRef.current && ctxRef.current.state !== "closed") {
         ctxRef.current.close().catch(() => { /* ignore */ });
       }
@@ -118,11 +114,10 @@ export function useFrequencyAnalysis(
     if (analyserRef.current) {
       try { analyserRef.current.disconnect(); } catch { /* ignore */ }
     }
-    // Disconnect source from any stale analyser before attaching a new one.
     try { source.disconnect(); } catch { /* ignore */ }
 
     const analyser = ctx.createAnalyser();
-    analyser.fftSize              = FFT_SIZE;
+    analyser.fftSize               = FFT_SIZE;
     analyser.smoothingTimeConstant = SMOOTHING;
 
     source.connect(analyser);
@@ -131,29 +126,36 @@ export function useFrequencyAnalysis(
     analyserRef.current = analyser;
     dataRef.current     = new Uint8Array(analyser.frequencyBinCount);
 
-    // ── Resume context (autoplay policy may have suspended it) ────────────
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => { /* ignore */ });
     }
 
-    // ── RAF loop ──────────────────────────────────────────────────────────
     const data     = dataRef.current;
     const binWidth = ctx.sampleRate / FFT_SIZE;
 
-    function tick() {
-      analyser.getByteFrequencyData(data);
-      setBands({
-        sub:  averageBand(data, binWidth, BAND_RANGES.sub.fLow,  BAND_RANGES.sub.fHigh),
-        low:  averageBand(data, binWidth, BAND_RANGES.low.fLow,  BAND_RANGES.low.fHigh),
-        mid:  averageBand(data, binWidth, BAND_RANGES.mid.fLow,  BAND_RANGES.mid.fHigh),
-        high: averageBand(data, binWidth, BAND_RANGES.high.fLow, BAND_RANGES.high.fHigh),
-      });
+    // Throttle React state emission to ~30 Hz. The <audio> analyser is read
+    // every frame for accuracy, but committing to React state 60×/s would
+    // re-render App (and every child) needlessly — the meters use a 60 ms CSS
+    // transition and the renderer applies its own per-frame smoothing, so a
+    // 30 Hz band feed is indistinguishable while halving render churn.
+    const EMIT_INTERVAL_MS = 33;
+    let lastEmit = 0;
+
+    function tick(now: number) {
+      if (now - lastEmit >= EMIT_INTERVAL_MS) {
+        lastEmit = now;
+        analyser.getByteFrequencyData(data);
+        setBands({
+          low:  averageBand(data, binWidth, BAND_RANGES.low.fLow,  BAND_RANGES.low.fHigh),
+          mid:  averageBand(data, binWidth, BAND_RANGES.mid.fLow,  BAND_RANGES.mid.fHigh),
+          high: averageBand(data, binWidth, BAND_RANGES.high.fLow, BAND_RANGES.high.fHigh),
+        });
+      }
       rafRef.current = requestAnimationFrame(tick);
     }
     rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      // isPlaying changed — stop the loop; leave graph intact.
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -168,9 +170,8 @@ export function useFrequencyAnalysis(
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      // Disconnect the analyser only.
-      // Source + AudioContext are owned by audioGraphRegistry and must
-      // survive remounts so createMediaElementSource is never called twice.
+      // Source + AudioContext are owned by audioGraphRegistry and must survive
+      // remounts so createMediaElementSource is never called twice.
       try { analyserRef.current?.disconnect(); } catch { /* ignore */ }
       analyserRef.current = null;
     };

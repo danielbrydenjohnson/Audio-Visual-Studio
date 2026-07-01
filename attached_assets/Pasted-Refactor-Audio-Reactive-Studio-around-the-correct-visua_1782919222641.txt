@@ -1,0 +1,841 @@
+Refactor Audio Reactive Studio around the correct visual principle.
+
+
+
+The current connected 2D particle visual and four-band audio model are conceptually wrong.
+
+
+
+The product should use a genuine 3D particle field where individual particles react differently to three audio frequency bands:
+
+
+
+- Low
+
+- Mid
+
+- High
+
+
+
+Do not rebuild the audio upload, playback, seeking, file replacement, application shell, or general layout.
+
+
+
+This task should replace the current particle renderer, update the audio-analysis model from four bands to three, and update the related controls and types.
+
+
+
+CORE PRODUCT PRINCIPLE
+
+
+
+The particle field must not react as one solid object.
+
+
+
+Do not use any of the following as the main audio reaction:
+
+
+
+- Scaling the entire scene
+
+- Scaling the whole particle cloud
+
+- Expanding the whole cloud from the centre
+
+- Rotating the complete particle system
+
+- Moving every particle in the same direction
+
+- Flashing the entire canvas on every beat
+
+- Connecting particles with lines
+
+
+
+Each particle must have its own behaviour, audio affinity, movement phase, size, brightness, position, and velocity.
+
+
+
+The visual should feel like particles floating through real 3D space, closer to Trapcode Particular than a network graph.
+
+
+
+THREE AUDIO BANDS
+
+
+
+Replace the existing Sub, Low, Mid, and High model with exactly three bands:
+
+
+
+Low:
+
+- Frequency range: 20 Hz to 200 Hz
+
+- Represents sub-bass, basslines, and kick energy
+
+
+
+Mid:
+
+- Frequency range: 250 Hz to 4,000 Hz
+
+- Represents snares, claps, vocals, synth body, and melodic content
+
+
+
+High:
+
+- Frequency range: 4,000 Hz to 16,000 Hz
+
+- Represents hi-hats, cymbals, brightness, and sharp transients
+
+
+
+Update all related code:
+
+
+
+- Frequency analysis types
+
+- Frequency meter types
+
+- Frequency meter display
+
+- Audio-reactive settings types
+
+- Default influence settings
+
+- App.tsx state
+
+- Particle renderer props
+
+- Reset behaviour
+
+- Labels in the interface
+
+
+
+Remove every remaining reference to the old Sub band.
+
+
+
+Keep analyser.fftSize at 2048.
+
+
+
+Calculate the average energy of the FFT bins inside each of the three frequency ranges.
+
+
+
+Display each band from 0 to 100.
+
+
+
+Keep the raw analyser values unchanged by the visual influence sliders.
+
+
+
+THREE-DIMENSIONAL PARTICLE RENDERER
+
+
+
+Replace the existing HTML Canvas 2D particle renderer with a Three.js WebGL renderer.
+
+
+
+Requirements:
+
+
+
+- Add and use the `three` package directly
+
+- Do not use React Three Fiber
+
+- Use THREE.Points with BufferGeometry
+
+- Do not create a separate Mesh for every particle
+
+- Use a PerspectiveCamera
+
+- Give every particle a real x, y, and z position
+
+- Create a spacious 3D volume around and in front of the camera
+
+- Make nearby particles appear larger and brighter
+
+- Make distant particles appear smaller and dimmer
+
+- Allow particles to move toward and away from the camera
+
+- Recycle or wrap particles when they leave the defined 3D volume
+
+- Use a very dark background
+
+- Remove all connecting lines permanently
+
+
+
+Use a custom ShaderMaterial if necessary for efficient per-particle size, colour, opacity, glow, depth, and audio reaction.
+
+
+
+PARTICLE DATA
+
+
+
+Each particle must receive stable, randomly generated attributes when the particle field is created.
+
+
+
+Include attributes such as:
+
+
+
+- Base x position
+
+- Base y position
+
+- Base z position
+
+- Velocity x
+
+- Velocity y
+
+- Velocity z
+
+- Base size
+
+- Base opacity
+
+- Random seed
+
+- Movement phase
+
+- Movement speed
+
+- Movement direction
+
+- Low affinity
+
+- Mid affinity
+
+- High affinity
+
+- Dominant frequency band
+
+- Sparkle threshold
+
+
+
+The Low, Mid, and High affinity values must differ between particles.
+
+
+
+Do not assign identical audio influence values to every particle.
+
+
+
+A particle may react to more than one band, but most particles should have one dominant band so the three reactions remain visually distinct.
+
+
+
+Use typed arrays and BufferGeometry attributes.
+
+
+
+Do not rebuild particle geometry every frame.
+
+
+
+BASE MOVEMENT
+
+
+
+When all three audio influences are set to 0%, the particles must still:
+
+
+
+- Float slowly through 3D space
+
+- Drift in different directions
+
+- Move at slightly different speeds
+
+- Pass toward and away from the camera
+
+- Feel organic rather than mechanically uniform
+
+
+
+The resting animation must not depend on audio playback.
+
+
+
+INDIVIDUAL LOW REACTION
+
+
+
+Low must affect Low-sensitive particles individually.
+
+
+
+Possible reactions:
+
+
+
+- Temporary increase in individual particle size
+
+- Short movement impulses along each particle's own direction
+
+- Faster movement through the z-axis
+
+- Slight outward pressure based on each particle's personal position and affinity
+
+
+
+Requirements:
+
+
+
+- Particles with high Low affinity should react strongly
+
+- Particles with low Low affinity should barely react
+
+- Do not expand or scale the complete particle cloud
+
+- Do not move every particle outward simultaneously
+
+- Do not permanently alter the base particle positions
+
+- The reaction should feel heavy and rhythmic
+
+
+
+INDIVIDUAL MID REACTION
+
+
+
+Mid must affect Mid-sensitive particles individually.
+
+
+
+Possible reactions:
+
+
+
+- Curved movement
+
+- Local orbital movement
+
+- Direction changes
+
+- Turbulence
+
+- Side-to-side movement
+
+- Individual colour modulation
+
+
+
+Requirements:
+
+
+
+- Every reacting particle should use its own phase, direction, and affinity
+
+- Do not rotate the complete particle scene
+
+- Do not rotate one parent group containing all particles
+
+- Do not make all particles turn at the same time
+
+- The reaction should feel fluid and active rather than like a rigid spin
+
+
+
+INDIVIDUAL HIGH REACTION
+
+
+
+High must affect High-sensitive particles individually.
+
+
+
+Possible reactions:
+
+
+
+- Sparkle
+
+- Short brightness peaks
+
+- Opacity changes
+
+- Small size flashes
+
+- Brief velocity changes
+
+- Rapid twinkling among a changing subset of particles
+
+
+
+Requirements:
+
+
+
+- Only some High-sensitive particles should flash strongly at any moment
+
+- Use each particle's random seed, affinity, phase, and sparkle threshold
+
+- Avoid making every particle flash together
+
+- Avoid full-screen strobing
+
+- Avoid a constant white overlay
+
+- The reaction should feel sharp and detailed
+
+
+
+SMOOTHING
+
+
+
+Smooth Low, Mid, and High independently.
+
+
+
+Use a fast attack and slower release for each band.
+
+
+
+Suggested starting values:
+
+
+
+- Attack coefficient: approximately 0.35
+
+- Release coefficient: approximately 0.055
+
+
+
+Keep all smoothed values inside the renderer or animation-loop closure.
+
+
+
+Do not create React state updates inside requestAnimationFrame.
+
+
+
+A paused track should cause all audio reactions to fade naturally back to zero while the base particle movement continues.
+
+
+
+AUDIO INFLUENCE CONTROLS
+
+
+
+Replace the current four influence sliders with exactly three:
+
+
+
+- Low Influence
+
+- Mid Influence
+
+- High Influence
+
+
+
+Requirements:
+
+
+
+- Range: 0% to 200%
+
+- Show the current percentage beside each label
+
+- Defaults:
+
+  - Low: 120%
+
+  - Mid: 100%
+
+  - High: 100%
+
+- At 0%, that frequency band must have no visual effect
+
+- At 100%, use the intended normal reaction
+
+- At 200%, make the reaction clearly stronger but still controlled
+
+- Keep a Reset Audio button that restores the three defaults
+
+
+
+Store the values in App.tsx using a strongly typed object.
+
+
+
+Pass the settings into the particle renderer through strongly typed props.
+
+
+
+VISUAL CONTROLS
+
+
+
+Preserve or implement these visual controls:
+
+
+
+Particle Density:
+
+- Low: 750 particles
+
+- Medium: 1,500 particles
+
+- High: 3,000 particles
+
+- Default: Medium
+
+
+
+Motion Speed:
+
+- Range: 25% to 200%
+
+- Default: 100%
+
+- Controls resting particle movement
+
+- Must not unpredictably multiply audio reactions
+
+
+
+Particle Size:
+
+- Range: 50% to 200%
+
+- Default: 100%
+
+- Controls resting particle size before audio reactions
+
+
+
+Depth:
+
+- Range: 50% to 200%
+
+- Default: 100%
+
+- Controls the depth of the 3D particle volume
+
+- Must not move the camera inside particles or cause clipping
+
+
+
+Glow:
+
+- Range: 0% to 100%
+
+- Default: 30%
+
+- Apply efficiently through the point shader or material
+
+- Do not add expensive shadow effects to thousands of individual objects
+
+
+
+Palette:
+
+- Cyan Violet
+
+- Monochrome
+
+- Ember
+
+- Default: Cyan Violet
+
+
+
+Remove the Connection Distance control because particles are no longer connected.
+
+
+
+Remove any control that exists only for the old 2D network renderer.
+
+
+
+Add a Reset Visuals button that restores only the visual defaults.
+
+
+
+Reset Visuals must not change the Low, Mid, or High influence settings.
+
+
+
+TRAILS
+
+
+
+Only preserve Trails if it can be implemented cleanly with WebGL without causing uncontrolled smearing, brightness buildup, or renderer errors.
+
+
+
+If Trails cannot be made reliable during this refactor:
+
+
+
+- Remove the Trails control temporarily
+
+- Do not fake it with a broken implementation
+
+- Mention that it was deliberately deferred
+
+
+
+PERFORMANCE
+
+
+
+- Use one THREE.Points particle system
+
+- Use BufferGeometry
+
+- Use typed arrays
+
+- Prefer shader uniforms and per-particle attributes
+
+- Do not allocate new arrays or objects every animation frame
+
+- Do not rebuild the complete geometry every frame
+
+- Cap devicePixelRatio at a sensible value for performance
+
+- Keep 3,000 particles smooth on an ordinary laptop
+
+- Avoid post-processing libraries during this task
+
+- Avoid bloom passes during this task
+
+- Avoid React state updates in the render loop
+
+
+
+SETTINGS BRIDGE
+
+
+
+Audio values and visual settings will change while the renderer is running.
+
+
+
+Use refs, uniforms, or another efficient bridge so the Three.js scene can read the latest values without recreating the complete scene or restarting the animation effect.
+
+
+
+Changing an influence slider should update the scene immediately.
+
+
+
+Changing density may rebuild the particle buffers safely, but it must not create duplicate animation loops, renderers, or resize observers.
+
+
+
+RESIZING AND CLEANUP
+
+
+
+Preserve responsive resizing.
+
+
+
+When the component unmounts:
+
+
+
+- Cancel requestAnimationFrame
+
+- Disconnect ResizeObserver
+
+- Dispose of BufferGeometry
+
+- Dispose of ShaderMaterial or PointsMaterial
+
+- Dispose of textures if any are created
+
+- Dispose of the WebGLRenderer
+
+- Remove the renderer canvas from its container
+
+- Remove event listeners
+
+- Avoid duplicate WebGL contexts during hot reload or React remounts
+
+
+
+PRESERVE EXISTING FUNCTIONALITY
+
+
+
+The following must continue working:
+
+
+
+- MP3 upload
+
+- WAV upload
+
+- Local browser-only audio handling
+
+- Play
+
+- Pause
+
+- Seeking
+
+- Current time
+
+- Duration
+
+- Changing audio files
+
+- AudioContext resume behaviour
+
+- Frequency analysis
+
+- Fresh page reload
+
+- React remounts
+
+- Preview resizing
+
+
+
+Do not add:
+
+
+
+- Authentication
+
+- Database
+
+- Accounts
+
+- Saved projects
+
+- Backend services
+
+- Recording
+
+- Rendering
+
+- Video export
+
+- New visual templates
+
+- Instrument stem separation
+
+
+
+VALIDATION
+
+
+
+Test these cases:
+
+
+
+1. Set Low, Mid, and High Influence to 0%.
+
+   - Particles should continue floating naturally in 3D.
+
+   - Music should have no visual effect.
+
+
+
+2. Set only Low to 200%.
+
+   - Different Low-sensitive particles should pulse and move individually.
+
+   - The complete cloud must not expand as one object.
+
+
+
+3. Set only Mid to 200%.
+
+   - Different Mid-sensitive particles should show individual curved or turbulent movement.
+
+   - The complete scene must not rotate.
+
+
+
+4. Set only High to 200%.
+
+   - A changing subset of particles should sparkle individually.
+
+   - The entire canvas must not flash.
+
+
+
+5. Set all three controls to their defaults.
+
+   - The combined result should remain readable rather than chaotic.
+
+
+
+6. Pause the track.
+
+   - Audio reactions should fade away.
+
+   - Resting 3D movement should continue.
+
+
+
+7. Change the uploaded file.
+
+   - The analyser and renderer should continue without a runtime crash.
+
+
+
+8. Refresh the page and test again.
+
+   - No duplicate MediaElementAudioSourceNode error
+
+   - No duplicate WebGL renderer
+
+   - No duplicate animation loop
+
+
+
+Run TypeScript checks and fix all runtime errors.
+
+
+
+After implementation, explain:
+
+
+
+- Which files changed
+
+- Which dependency was added
+
+- How the four-band model was converted to three bands
+
+- How real 3D depth is created
+
+- How particle affinities are generated
+
+- How particles receive different Low, Mid, and High reactions
+
+- Why the particle field no longer behaves as one object
+
+- Which old controls were removed
+
+- Whether Trails was preserved or deliberately deferred
+
+- How Three.js resources are cleaned up
