@@ -1,0 +1,239 @@
+Add the first browser-based video recording and download workflow to Audio Reactive Studio.
+
+Do not rebuild the audio analysis, Three.js renderer, particle system, controls, or application layout.
+
+GOAL
+
+Allow the user to record the current 3D particle visual together with the uploaded audio, stop the recording, preview the result, and download it as a WebM video.
+
+This is an MVP browser-side recording implementation using MediaRecorder.
+
+Do not add server-side rendering or FFmpeg yet.
+
+RECORDING SOURCE
+
+Record:
+
+- The actual Three.js WebGL canvas
+- The same uploaded audio that is currently playing
+- The audio and video combined into one MediaStream
+
+Use:
+
+- HTMLCanvasElement.captureStream()
+- Web Audio API MediaStreamDestination
+- MediaRecorder
+
+Do not record the browser window or screen.
+
+Do not use getDisplayMedia.
+
+THREE.JS CANVAS ACCESS
+
+Expose the actual renderer canvas from the Three.js particle component to the parent in a safe, strongly typed way.
+
+Possible approaches include:
+
+- forwarding a ref
+- providing a callback when the renderer canvas becomes available
+
+Do not query the page using fragile selectors.
+
+The recording system must always use the current active renderer canvas.
+
+AUDIO RECORDING ROUTING
+
+The existing audio should remain audible through the speakers while also being sent to the recording stream.
+
+Route the existing Web Audio graph to:
+
+- AudioContext destination for normal playback
+- MediaStreamAudioDestinationNode for recording
+
+Do not create another MediaElementAudioSourceNode for the same audio element.
+
+Preserve the existing WeakMap protection against duplicate MediaElementAudioSourceNode creation.
+
+Expose the audio recording stream to the recording workflow without duplicating or rebuilding the audio graph.
+
+RECORDING CONTROLS
+
+Replace the placeholder Output section with:
+
+- Start Recording button
+- Stop Recording button
+- Recording status
+- Elapsed recording time
+- Clear Recording button after a recording exists
+
+Button behaviour:
+
+Start Recording:
+- Disabled until an audio file is loaded
+- Disabled if the renderer canvas is unavailable
+- Starts the uploaded song from the beginning
+- Starts recording the visual and audio
+- Changes the status to Recording
+- Prevents starting a second recording simultaneously
+
+Stop Recording:
+- Only enabled during recording
+- Stops MediaRecorder
+- Pauses the audio
+- Produces a previewable video blob
+
+Clear Recording:
+- Revokes the generated object URL
+- Removes the existing preview and download
+- Does not remove the uploaded song
+- Does not reset visual settings
+
+RECORDING BEHAVIOUR
+
+When Start Recording is pressed:
+
+1. Ensure the AudioContext is resumed.
+2. Seek the uploaded audio to time 0.
+3. Capture the Three.js canvas at 60 fps where supported.
+4. Combine the canvas video track and Web Audio recording track.
+5. Create a MediaRecorder using the best supported WebM MIME type.
+6. Begin playback.
+7. Begin recording.
+
+Preferred MIME type order:
+
+- video/webm;codecs=vp9,opus
+- video/webm;codecs=vp8,opus
+- video/webm
+
+Use MediaRecorder.isTypeSupported() before selecting a MIME type.
+
+If none is explicitly supported, allow the browser to choose the default.
+
+AUTOMATIC STOP
+
+Automatically stop recording when the audio track reaches its end.
+
+The automatic stop must produce the same result as pressing Stop Recording manually.
+
+Do not leave MediaRecorder running after the audio ends.
+
+PREVIEW
+
+After recording finishes:
+
+- Create an object URL from the completed Blob
+- Show a standard HTML video player in the Output section
+- Include native playback controls
+- Allow the user to preview the recorded result inside the browser
+
+DOWNLOAD
+
+Add a Download WebM button.
+
+Use a sensible filename based on the uploaded track name:
+
+original-name-visual.webm
+
+Remove the original file extension before adding -visual.webm.
+
+Do not upload the recording to a server.
+
+Do not store the recording in a database.
+
+RECORDING TIMER
+
+Show elapsed recording time in mm:ss format.
+
+Update it while recording.
+
+Stop and reset timer updates correctly during stop, clear, unmount, or failure.
+
+Avoid unnecessary React updates faster than needed.
+
+A timer update approximately four times per second is sufficient.
+
+ERROR HANDLING
+
+Show a clear user-facing error message if:
+
+- Canvas capture is unsupported
+- MediaRecorder is unsupported
+- No audio recording track is available
+- Recording fails to start
+- The browser rejects playback
+- The recorder stops without producing data
+
+Do not crash the application.
+
+CLEANUP
+
+On component unmount or when clearing a recording:
+
+- Stop any active MediaRecorder
+- Stop captured MediaStream tracks
+- Clear timer intervals
+- Revoke generated object URLs
+- Remove MediaRecorder event handlers
+- Avoid retaining old Blob chunks
+- Do not dispose of the active Three.js renderer unless the particle component itself unmounts
+
+PRESERVE EXISTING FUNCTIONALITY
+
+The following must continue working:
+
+- MP3 upload
+- WAV upload
+- Play and pause
+- Seeking
+- Changing audio files
+- Three-band frequency analysis
+- Low, Mid, and High influence controls
+- Three.js particle rendering
+- Individual particle reactions
+- Visual controls
+- Fresh reload
+- Hot reload
+- Responsive resizing
+
+Do not add:
+
+- MP4 conversion
+- FFmpeg
+- Server-side rendering
+- Backend jobs
+- Accounts
+- Database
+- Cloud storage
+- Payments
+- Multiple visual templates
+
+VALIDATION
+
+Test:
+
+1. Upload a short MP3.
+2. Start recording.
+3. Confirm the song begins from time 0.
+4. Confirm the visual reacts during recording.
+5. Stop recording manually.
+6. Preview the generated video.
+7. Confirm the video contains both picture and sound.
+8. Download the WebM.
+9. Start another recording and confirm no duplicate streams or recorders remain.
+10. Allow a short song to reach the end and confirm recording stops automatically.
+11. Change the uploaded audio file and record again.
+12. Refresh the application and repeat.
+13. Confirm TypeScript passes.
+14. Confirm there are no runtime errors.
+
+After implementation, explain:
+
+- Which files changed
+- How the Three.js canvas is exposed
+- How the audio is routed to both speakers and MediaRecorder
+- How the audio and canvas streams are combined
+- Which MIME type was selected
+- How automatic stopping works
+- How object URLs and MediaStream tracks are cleaned up
+- Known browser limitations

@@ -75,19 +75,28 @@ export function AudioPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioRef]);
 
+  // Sync from the element's own play/pause events so ANY trigger — the button
+  // or programmatic playback started by the recorder — keeps state consistent
+  // and drives the frequency analyser.
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true);
+    onPlayStateChange(true);
+  }, [onPlayStateChange]);
+
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+    onPlayStateChange(false);
+  }, [onPlayStateChange]);
+
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-      onPlayStateChange(false);
-    } else {
+    if (audio.paused) {
       audio.play().catch(() => { /* autoplay policy — no-op */ });
-      setIsPlaying(true);
-      onPlayStateChange(true);
+    } else {
+      audio.pause();
     }
-  }, [isPlaying, audioRef, onPlayStateChange]);
+  }, [audioRef]);
 
   // Seek slider handlers
   function handleSeekStart(e: React.ChangeEvent<HTMLInputElement>) {
@@ -120,6 +129,8 @@ export function AudioPlayer({
         onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
+        onPlay={handlePlay}
+        onPause={handlePause}
         preload="metadata"
       />
 

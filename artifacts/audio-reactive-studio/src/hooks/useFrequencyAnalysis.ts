@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type RefObject } from "react";
+import { useState, useRef, useEffect, useCallback, type RefObject } from "react";
 
 /**
  * Three-band frequency model.
@@ -55,10 +55,47 @@ function averageBand(
  * leaves the DOM.
  */
 interface AudioGraph {
-  ctx:    AudioContext;
-  source: MediaElementAudioSourceNode;
+  ctx:        AudioContext;
+  source:     MediaElementAudioSourceNode;
+  /** Recording tap — mirrors the audio to a MediaStream for MediaRecorder. */
+  streamDest: MediaStreamAudioDestinationNode;
 }
 const audioGraphRegistry = new WeakMap<HTMLAudioElement, AudioGraph>();
+
+/**
+ * Get (or lazily create) the singleton {ctx, source, streamDest} for an element.
+ * createMediaElementSource is called AT MOST ONCE per element (WeakMap-guarded).
+ * The streamDest recording tap is created + connected once, alongside the source.
+ */
+function getOrCreateGraph(audioEl: HTMLAudioElement): AudioGraph {
+  let graph = audioGraphRegistry.get(audioEl);
+  if (!graph || graph.ctx.state === "closed") {
+    const ctx        = new AudioContext();
+    const source     = ctx.createMediaElementSource(audioEl);
+    const streamDest = ctx.createMediaStreamDestination();
+    source.connect(streamDest); // recording tap — always fed, alongside speakers
+    graph = { ctx, source, streamDest };
+    audioGraphRegistry.set(audioEl, graph);
+  }
+  return graph;
+}
+
+/** Live audio graph handles exposed to the recording workflow. */
+export interface AudioGraphHandle {
+  ctx:    AudioContext;
+  /** MediaStream carrying the currently-playing audio, for MediaRecorder. */
+  stream: MediaStream;
+}
+
+export interface FrequencyAnalysis {
+  bands: FrequencyBands;
+  /**
+   * Ensure the audio graph exists and return its context + recording stream.
+   * Reuses the existing WeakMap-guarded graph — never builds a second source.
+   * Returns null if no audio element is mounted.
+   */
+  ensureAudioGraph: () => AudioGraphHandle | null;
+}
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -72,7 +109,7 @@ const audioGraphRegistry = new WeakMap<HTMLAudioElement, AudioGraph>();
 export function useFrequencyAnalysis(
   audioRef:  RefObject<HTMLAudioElement | null>,
   isPlaying: boolean,
-): FrequencyBands {
+): FrequencyAnalysis {
   const [bands, setBands] = useState<FrequencyBands>(ZERO_BANDS);
 
   const ctxRef      = useRef<AudioContext | null>(null);
@@ -94,20 +131,15 @@ export function useFrequencyAnalysis(
     const audioEl = audioRef.current;
     if (!audioEl) return;
 
-    // ── Get or create the {ctx, source} pair for this element ─────────────
-    let graph = audioGraphRegistry.get(audioEl);
+    // ── Get or create the {ctx, source, streamDest} for this element ──────
+    const graph = getOrCreateGraph(audioEl);
 
-    if (!graph || graph.ctx.state === "closed") {
-      if (ctxRef.current && ctxRef.current.state !== "closed") {
-        ctxRef.current.close().catch(() => { /* ignore */ });
-      }
-      const ctx    = new AudioContext();
-      const source = ctx.createMediaElementSource(audioEl);
-      graph        = { ctx, source };
-      audioGraphRegistry.set(audioEl, graph);
+    // Close a stale context left over from a previous, different element.
+    if (ctxRef.current && ctxRef.current !== graph.ctx && ctxRef.current.state !== "closed") {
+      ctxRef.current.close().catch(() => { /* ignore */ });
     }
 
-    const { ctx, source } = graph;
+    const { ctx, source, streamDest } = graph;
     ctxRef.current = ctx;
 
     // ── Rebuild the analyser (lightweight; always fresh on each mount) ────
@@ -122,6 +154,7 @@ export function useFrequencyAnalysis(
 
     source.connect(analyser);
     analyser.connect(ctx.destination); // keep playback audible
+    source.connect(streamDest);        // re-feed the recording tap (disconnect above dropped it)
 
     analyserRef.current = analyser;
     dataRef.current     = new Uint8Array(analyser.frequencyBinCount);
@@ -177,5 +210,14 @@ export function useFrequencyAnalysis(
     };
   }, []);
 
-  return bands;
+  // ── Recording graph accessor ──────────────────────────────────────────────
+  const ensureAudioGraph = useCallback((): AudioGraphHandle | null => {
+    const el = audioRef.current;
+    if (!el) return null;
+    const graph = getOrCreateGraph(el);
+    ctxRef.current = graph.ctx;
+    return { ctx: graph.ctx, stream: graph.streamDest.stream };
+  }, [audioRef]);
+
+  return { bands, ensureAudioGraph };
 }

@@ -20,6 +20,12 @@ export interface ParticleFieldProps {
   settings: VisualizerSettings;
   /** Visual styling settings (density, speed, size, depth, glow, palette). */
   visualSettings: ParticleVisualSettings;
+  /**
+   * Called with the live WebGL canvas when the renderer is ready, and with null
+   * when it is torn down. Lets the recording workflow capture the exact canvas
+   * without fragile DOM queries.
+   */
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 }
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
@@ -242,10 +248,14 @@ function buildGeometry(count: number, halfW: number, halfH: number, halfD: numbe
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ParticleField({
-  low, mid, high, settings, visualSettings,
+  low, mid, high, settings, visualSettings, onCanvasReady,
 }: ParticleFieldProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
+
+  // Read the callback through a ref so the single-run effect never restarts.
+  const onCanvasReadyRef = useRef(onCanvasReady);
+  onCanvasReadyRef.current = onCanvasReady;
 
   // Ref bridge — synchronous mirror of all props so the single-run effect reads
   // the latest values every frame without restarting or re-rendering.
@@ -271,6 +281,7 @@ export function ParticleField({
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     } catch {
       setWebglFailed(true);
+      onCanvasReadyRef.current?.(null);
       return;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -279,6 +290,7 @@ export function ParticleField({
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
+    onCanvasReadyRef.current?.(renderer.domElement);
 
     const scene  = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 3000);
@@ -418,6 +430,7 @@ export function ParticleField({
 
     // ── Cleanup ──────────────────────────────────────────────────────────
     return () => {
+      onCanvasReadyRef.current?.(null);
       cancelAnimationFrame(rafId);
       ro.disconnect();
       scene.remove(points);

@@ -3,7 +3,9 @@ import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { FrequencyMeters } from "@/components/FrequencyMeters";
 import { ParticleField } from "@/components/ParticleField";
+import { RecordingPanel } from "@/components/RecordingPanel";
 import { useFrequencyAnalysis } from "@/hooks/useFrequencyAnalysis";
+import { useRecorder } from "@/hooks/useRecorder";
 import {
   type VisualizerSettings,
   type ParticleVisualSettings,
@@ -168,10 +170,14 @@ function App() {
   const [settings,       setSettings]       = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [visualSettings, setVisualSettings] = useState<ParticleVisualSettings>(DEFAULT_VISUAL_SETTINGS);
 
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+
   const audioRef      = useRef<HTMLAudioElement | null>(null);
   const currentUrlRef = useRef<string | null>(null);
 
-  const bands = useFrequencyAnalysis(audioRef, isPlaying);
+  const { bands, ensureAudioGraph } = useFrequencyAnalysis(audioRef, isPlaying);
+
+  const recorder = useRecorder({ audioRef, canvas, ensureAudioGraph, fileName });
 
   // Revoke object URL on unmount.
   useEffect(() => {
@@ -242,6 +248,7 @@ function App() {
               high={bands.high}
               settings={settings}
               visualSettings={visualSettings}
+              onCanvasReady={setCanvas}
             />
             <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg pointer-events-none z-10" />
             <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/40 rounded-tr-lg pointer-events-none z-10" />
@@ -376,6 +383,9 @@ function App() {
                 />
               </div>
             </div>
+
+            {/* ── Output / Recording Section ── */}
+            <RecordingPanel recorder={recorder} />
 
           </div>
         </aside>
