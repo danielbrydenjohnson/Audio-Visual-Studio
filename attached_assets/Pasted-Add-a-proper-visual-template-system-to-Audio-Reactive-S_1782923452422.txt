@@ -1,0 +1,382 @@
+Add a proper visual template system to Audio Reactive Studio and create two new 3D audio-reactive templates.
+
+The app currently has one working Three.js particle visual called Particle Field.
+
+Preserve the existing audio upload, playback, seeking, three-band analysis, audio influence controls, visual controls, browser recording, WebM preview, and download workflow.
+
+Do not publish the app yet.
+
+GOAL
+
+The app should have exactly three selectable visual templates:
+
+1. Particle Field
+2. Orbital Swarm
+3. Pulse Tunnel
+
+The templates must be visually and behaviourally distinct.
+
+Do not create minor colour variations of the same particle field.
+
+TEMPLATE ARCHITECTURE
+
+Create a strongly typed template system.
+
+Add a VisualTemplateId type with exactly:
+
+- particle-field
+- orbital-swarm
+- pulse-tunnel
+
+Create central template metadata containing:
+
+- id
+- display name
+- short description
+
+Store the selected template in App.tsx.
+
+Add a Template selector near the top of the Visualizer controls section.
+
+Use either compact selectable cards or a select control.
+
+The selected template must change immediately without reloading the page.
+
+Do not copy and paste the entire Three.js renderer three times.
+
+Keep one shared Three.js renderer, scene, camera, animation loop, ResizeObserver, and renderer canvas.
+
+Create separate template modules for template-specific:
+
+- particle initialization
+- BufferGeometry attributes
+- shader behaviour
+- movement calculations
+- audio reactions
+
+A suggested structure is:
+
+src/visuals/templates/particleField.ts
+src/visuals/templates/orbitalSwarm.ts
+src/visuals/templates/pulseTunnel.ts
+
+Use a clean shared interface for template implementations.
+
+SWITCHING TEMPLATES
+
+When the selected template changes:
+
+- Keep the same WebGLRenderer and renderer canvas
+- Dispose of the previous geometry and material
+- Remove the previous THREE.Points object
+- Create the selected template geometry and material
+- Do not create another requestAnimationFrame loop
+- Do not create another ResizeObserver
+- Do not create another WebGL context
+- Do not interrupt audio playback
+- Keep the current Low, Mid, and High values
+- Keep current influence and visual settings
+
+The browser recording system must continue capturing the same renderer canvas.
+
+Disable the Template selector while recording is active so the visual cannot change halfway through a recording.
+
+SHARED PRODUCT PRINCIPLE
+
+All three templates must preserve the current principle:
+
+- Individual particles react differently
+- Each particle has different Low, Mid, and High affinities
+- Do not scale the whole scene
+- Do not rotate the entire scene as one object
+- Do not flash the complete canvas
+- Do not connect particles with lines
+- Do not move every particle identically
+- Do not use one global reaction as the primary visual effect
+
+Each template should continue using:
+
+- Three.js
+- PerspectiveCamera
+- THREE.Points
+- BufferGeometry
+- typed arrays
+- per-particle attributes
+- efficient ShaderMaterial or equivalent
+- real x, y, and z depth
+
+TEMPLATE 1: PARTICLE FIELD
+
+Preserve the current working Particle Field template.
+
+It should continue to show:
+
+- Free-floating particles in a spacious 3D volume
+- Independent movement directions
+- Different particle depths
+- Individual Low, Mid, and High reactions
+- No connecting lines
+- No global cloud scaling or rotation
+
+Refactor it into the new template structure without materially changing its current appearance or behaviour.
+
+TEMPLATE 2: ORBITAL SWARM
+
+Create a 3D orbital particle system.
+
+Base structure:
+
+- Create between three and five invisible attractor points
+- Each attractor slowly moves through 3D space
+- Each particle is assigned to an attractor
+- Each particle has its own orbital radius
+- Each particle has its own orbit speed
+- Each particle has its own orbit direction
+- Each particle has its own inclination and phase
+- Orbits must not all sit on the same flat plane
+- The combined result should look like several organic particle swarms
+
+Do not render the attractor points themselves.
+
+Low reaction:
+
+- Low-sensitive particles receive short radial impulses
+- Some move temporarily closer to their attractor
+- Some move temporarily farther away
+- Individual particle sizes may increase briefly
+- Do not expand every orbit simultaneously
+
+Mid reaction:
+
+- Mid-sensitive particles receive individual changes to orbital curvature
+- Add local turbulence and phase changes
+- Different particles should bend differently
+- Do not rotate the full scene or every orbit together
+
+High reaction:
+
+- High-sensitive particles sparkle independently
+- A changing subset should become brighter or slightly larger
+- Add restrained short velocity disturbances
+- Avoid full-screen flashing
+
+The result should feel alive and fluid, not like a rigid solar system.
+
+TEMPLATE 3: PULSE TUNNEL
+
+Create a deep cylindrical particle tunnel.
+
+Base structure:
+
+- Arrange particles throughout a long 3D cylindrical volume
+- Keep the camera looking down the tunnel
+- Particles should move toward the camera at different speeds
+- When particles pass the camera, recycle them to the far end
+- Give every particle its own:
+  - angle
+  - tunnel radius
+  - z position
+  - forward speed
+  - phase
+  - wave amount
+  - Low affinity
+  - Mid affinity
+  - High affinity
+
+The tunnel should have genuine perspective and depth.
+
+Do not construct the tunnel from rigid identical rings.
+
+Particles should be distributed organically rather than forming a perfect grid.
+
+Low reaction:
+
+- Low-sensitive particles individually accelerate toward the camera
+- Some particles briefly increase in size
+- Some particles receive small radial impulses
+- Do not move the entire tunnel forward at one speed
+- Do not scale the complete tunnel
+
+Mid reaction:
+
+- Mid-sensitive particles receive individual lateral wave motion
+- Use each particle's phase and direction
+- Create local bending and twisting through individual particle positions
+- Do not rotate the entire tunnel
+
+High reaction:
+
+- High-sensitive particles sparkle individually
+- Add short brightness peaks
+- Allow a changing subset to create brief streak-like motion
+- Do not flash the complete scene
+
+SHARED AUDIO BANDS
+
+Continue using exactly:
+
+Low:
+- 20 Hz to 250 Hz
+
+Mid:
+- 250 Hz to 4,000 Hz
+
+High:
+- 4,000 Hz to 16,000 Hz
+
+Preserve independent attack and release smoothing.
+
+Preserve the existing influence sliders:
+
+- Low Influence
+- Mid Influence
+- High Influence
+
+At 0%, the relevant band must have no visual effect.
+
+At 200%, the reaction should be strong but controlled.
+
+SHARED VISUAL CONTROLS
+
+The following controls must work across all three templates:
+
+Particle Density:
+- Low
+- Medium
+- High
+
+Motion Speed:
+- 25% to 200%
+
+Particle Size:
+- 50% to 200%
+
+Depth:
+- 50% to 200%
+
+Glow:
+- 0% to 100%
+
+Palette:
+- Cyan Violet
+- Monochrome
+- Ember
+
+Templates may interpret Depth slightly differently:
+
+- Particle Field: depth of the free-floating volume
+- Orbital Swarm: distance between swarms and orbital depth
+- Pulse Tunnel: length and depth of the tunnel
+
+Do not add template-specific controls yet.
+
+Do not restore Connection Distance or connecting lines.
+
+Do not add Trails unless the existing implementation is already reliable.
+
+PERFORMANCE
+
+Keep all three templates smooth at Medium density on an ordinary laptop.
+
+High density should remain usable.
+
+Requirements:
+
+- One THREE.Points system per active template
+- No mesh per particle
+- No React state updates inside requestAnimationFrame
+- No new arrays or objects allocated every frame where avoidable
+- Use typed arrays and reusable buffers
+- Use uniforms and refs for frequently changing values
+- Do not rebuild geometry on every audio frame
+- Cap devicePixelRatio
+- Dispose of old resources when switching templates
+
+RECORDING
+
+The existing recording workflow must continue working for all three templates.
+
+Test that:
+
+- Recording captures the active template
+- Audio is included
+- Preview works
+- Download works
+- Switching templates before recording records the correct template
+- Template selector is disabled while recording
+- The same renderer canvas remains connected to captureStream()
+
+INTERFACE
+
+Show the active template name above or near the preview.
+
+Add a short description beneath the Template selector:
+
+Particle Field:
+"Free-floating particles moving through open 3D space."
+
+Orbital Swarm:
+"Independent particle clusters orbiting moving attractors."
+
+Pulse Tunnel:
+"A deep reactive particle tunnel moving toward the camera."
+
+Keep the existing dark visual design.
+
+Do not redesign the complete application.
+
+VALIDATION
+
+Test all of the following:
+
+1. Switch repeatedly between all three templates.
+   - No duplicate canvas
+   - No duplicate renderer
+   - No duplicate animation loop
+   - No WebGL context errors
+
+2. Play audio and change templates.
+   - Audio continues playing
+   - Frequency meters continue updating
+   - New template reacts immediately
+
+3. Set all influence sliders to 0%.
+   - Each template continues its resting animation
+   - Audio creates no visual reaction
+
+4. Test Low at 200% by itself for each template.
+   - Individual particles react
+   - The entire scene does not scale
+
+5. Test Mid at 200% by itself for each template.
+   - Individual particles move differently
+   - The complete scene does not rotate
+
+6. Test High at 200% by itself for each template.
+   - A subset sparkles
+   - The whole canvas does not flash
+
+7. Record each template.
+   - WebM contains picture and sound
+   - The active template is captured correctly
+
+8. Change density and palette inside every template.
+   - Settings update correctly
+   - No runtime errors
+
+9. Refresh the page and repeat.
+   - No duplicate audio source error
+   - No duplicate WebGL renderer
+   - No broken recording stream
+
+Run TypeScript checks and fix all runtime errors.
+
+After implementation, explain:
+
+- Which files changed
+- How the template architecture works
+- How the renderer canvas is preserved
+- How each template differs
+- How each template reacts to Low, Mid, and High
+- How old geometry and materials are disposed
+- How recording continues to work across templates

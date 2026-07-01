@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { FrequencyMeters } from "@/components/FrequencyMeters";
-import { ParticleField } from "@/components/ParticleField";
+import { Visualizer } from "@/components/Visualizer";
 import { RecordingPanel } from "@/components/RecordingPanel";
 import { useFrequencyAnalysis } from "@/hooks/useFrequencyAnalysis";
 import { useRecorder } from "@/hooks/useRecorder";
@@ -12,6 +12,12 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_VISUAL_SETTINGS,
 } from "@/types/visualizer";
+import {
+  type VisualTemplateId,
+  VISUAL_TEMPLATES,
+  DEFAULT_TEMPLATE_ID,
+  getTemplateMeta,
+} from "@/visuals/types";
 
 // ─── Shared control styles ────────────────────────────────────────────────────
 
@@ -161,6 +167,55 @@ function SectionDivider() {
   return <div className="border-t border-border/30 -mx-1" />;
 }
 
+// ─── TemplateSelector — selectable cards for the three visual templates ───────
+
+interface TemplateSelectorProps {
+  value:    VisualTemplateId;
+  disabled: boolean;
+  onChange: (id: VisualTemplateId) => void;
+}
+
+function TemplateSelector({ value, disabled, onChange }: TemplateSelectorProps) {
+  const active = getTemplateMeta(value);
+  return (
+    <div className="space-y-2">
+      <div
+        className={`grid grid-cols-3 gap-1.5 ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+        aria-disabled={disabled}
+      >
+        {VISUAL_TEMPLATES.map(t => {
+          const selected = t.id === value;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onChange(t.id)}
+              disabled={disabled}
+              aria-pressed={selected}
+              className={`rounded-md border px-2 py-2 text-[10px] font-mono leading-tight text-center transition-colors ${
+                selected
+                  ? "border-primary/70 bg-primary/15 text-primary"
+                  : "border-border/60 bg-muted/30 text-muted-foreground hover:border-border hover:text-foreground"
+              } disabled:cursor-not-allowed`}
+              title={t.description}
+            >
+              {t.name}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[10px] font-mono leading-relaxed text-muted-foreground/70">
+        {active.description}
+      </p>
+      {disabled && (
+        <p className="text-[9px] font-mono text-amber-400/80 uppercase tracking-wider">
+          Locked while recording
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 function App() {
@@ -169,6 +224,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [settings,       setSettings]       = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [visualSettings, setVisualSettings] = useState<ParticleVisualSettings>(DEFAULT_VISUAL_SETTINGS);
+  const [templateId,     setTemplateId]     = useState<VisualTemplateId>(DEFAULT_TEMPLATE_ID);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
 
@@ -242,14 +298,24 @@ function App() {
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] -z-10" />
 
           <div className="flex-1 border border-border/40 rounded-xl bg-black shadow-2xl relative overflow-hidden min-h-0">
-            <ParticleField
+            <Visualizer
               low={bands.low}
               mid={bands.mid}
               high={bands.high}
               settings={settings}
               visualSettings={visualSettings}
+              templateId={templateId}
               onCanvasReady={setCanvas}
             />
+            {/* Active template name */}
+            <div className="absolute top-3 left-3 z-10 pointer-events-none">
+              <div className="flex items-center gap-2 rounded-md bg-black/40 backdrop-blur-sm border border-border/40 px-2.5 py-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="text-[10px] font-mono tracking-wide text-foreground/80">
+                  {getTemplateMeta(templateId).name}
+                </span>
+              </div>
+            </div>
             <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg pointer-events-none z-10" />
             <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/40 rounded-tr-lg pointer-events-none z-10" />
             <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary/40 rounded-bl-lg pointer-events-none z-10" />
@@ -310,12 +376,12 @@ function App() {
               </div>
             </div>
 
-            {/* ── Particle Field Section ── */}
+            {/* ── Visualizer Section ── */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-3 bg-chart-2/70 rounded-full" />
-                  <h3 className="text-sm font-medium text-foreground">Particle Field</h3>
+                  <h3 className="text-sm font-medium text-foreground">Visualizer</h3>
                 </div>
                 <button
                   type="button"
@@ -326,6 +392,16 @@ function App() {
                   Reset Visuals
                 </button>
               </div>
+
+              {/* Template selector — locked while recording so the visual can't
+                  change halfway through a capture. */}
+              <TemplateSelector
+                value={templateId}
+                disabled={recorder.status === "recording" || recorder.status === "starting"}
+                onChange={setTemplateId}
+              />
+
+              <SectionDivider />
 
               <div className="space-y-4">
                 <ControlSelect
