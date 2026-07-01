@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, type RefObject } from "react";
 
 export interface FrequencyBands {
-  sub: number;  // 20–80 Hz,    0–100
-  low: number;  // 80–250 Hz,   0–100
-  mid: number;  // 250–4000 Hz, 0–100
+  sub:  number; // 20–80 Hz,    0–100
+  low:  number; // 80–250 Hz,   0–100
+  mid:  number; // 250–4000 Hz, 0–100
   high: number; // 4000–16kHz,  0–100
 }
 
@@ -15,55 +15,78 @@ const SMOOTHING = 0.75;
 interface BandRange { fLow: number; fHigh: number }
 
 const BAND_RANGES: Record<keyof FrequencyBands, BandRange> = {
-  sub:  { fLow: 20,   fHigh: 80 },
-  low:  { fLow: 80,   fHigh: 250 },
-  mid:  { fLow: 250,  fHigh: 4000 },
+  sub:  { fLow: 20,   fHigh: 80    },
+  low:  { fLow: 80,   fHigh: 250   },
+  mid:  { fLow: 250,  fHigh: 4000  },
   high: { fLow: 4000, fHigh: 16000 },
 };
 
-/** Average the FFT byte values in [fLow, fHigh] Hz, normalised to 0–100. */
+/** Average FFT byte values in [fLow, fHigh] Hz, normalised 0–100. */
 function averageBand(
   data: Uint8Array<ArrayBuffer>,
   binWidth: number,
   fLow: number,
-  fHigh: number
+  fHigh: number,
 ): number {
   const startBin = Math.max(0, Math.floor(fLow / binWidth));
-  const endBin = Math.min(data.length - 1, Math.ceil(fHigh / binWidth));
+  const endBin   = Math.min(data.length - 1, Math.ceil(fHigh / binWidth));
   if (startBin > endBin) return 0;
   let sum = 0;
   for (let i = startBin; i <= endBin; i++) sum += data[i];
   return ((sum / (endBin - startBin + 1)) / 255) * 100;
 }
 
+// ─── Module-level registry ────────────────────────────────────────────────────
+/**
+ * The Web Audio API allows createMediaElementSource() to be called AT MOST
+ * ONCE per HTMLMediaElement — across any AudioContext, permanently.
+ *
+ * React Strict Mode and Vite HMR both unmount + remount components while the
+ * underlying <audio> DOM element survives.  On the re-mount the useRef guards
+ * reset to null, so a naive implementation calls createMediaElementSource()
+ * a second time and throws:
+ *   "HTMLMediaElement already connected to a different MediaElementSourceNode"
+ *
+ * Storing the {ctx, source} pair in a WeakMap keyed by the HTMLAudioElement
+ * solves this: the entry persists across React unmount/remount cycles because
+ * WeakMap is module-scoped, and it is automatically GC'd when the element is
+ * removed from the DOM (e.g. when the user changes the audio file).
+ */
+interface AudioGraph {
+  ctx:    AudioContext;
+  source: MediaElementAudioSourceNode;
+}
+const audioGraphRegistry = new WeakMap<HTMLAudioElement, AudioGraph>();
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 /**
  * Connects the supplied audio element to a Web Audio analyser and returns
  * live per-band energy values (0–100) updated every animation frame.
  *
- * - Creates the AudioContext and MediaElementAudioSourceNode lazily on the
- *   first play, honouring the browser's autoplay policy.
- * - Guards against duplicate MediaElementAudioSourceNodes for the same element.
- * - Cancels the RAF loop and disconnects all nodes on unmount.
+ * - AudioContext + MediaElementAudioSourceNode are created lazily on first
+ *   play, honouring the browser's autoplay policy.
+ * - A module-level WeakMap ensures createMediaElementSource is never called
+ *   twice for the same element (safe across HMR / Strict Mode remounts).
+ * - The analyser is rebuilt on each effect run; only the source + context
+ *   are preserved across remounts.
+ * - Cancels the RAF loop and disconnects the analyser on unmount.
  */
 export function useFrequencyAnalysis(
-  audioRef: RefObject<HTMLAudioElement | null>,
-  isPlaying: boolean
+  audioRef:  RefObject<HTMLAudioElement | null>,
+  isPlaying: boolean,
 ): FrequencyBands {
   const [bands, setBands] = useState<FrequencyBands>(ZERO_BANDS);
 
-  // Persisted audio-graph references (never stored in state to avoid re-renders)
-  const ctxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  /** Which element the source node was created for — guards against duplicates. */
-  const connectedElRef = useRef<HTMLAudioElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const dataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  // Refs for the audio graph — never in state to avoid re-renders.
+  const ctxRef      = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode  | null>(null);
+  const rafRef      = useRef<number        | null>(null);
+  const dataRef     = useRef<Uint8Array<ArrayBuffer> | null>(null);
 
-  // ── Main effect: set up graph + run RAF loop while playing ─────────────────
+  // ── Main effect: build graph + run RAF while playing ─────────────────────
   useEffect(() => {
     if (!isPlaying) {
-      // Pause: stop the RAF loop but leave the graph intact
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -72,49 +95,49 @@ export function useFrequencyAnalysis(
     }
 
     const audioEl = audioRef.current;
-    if (!audioEl) return; // safety guard (shouldn't happen when isPlaying is true)
+    if (!audioEl) return;
 
-    // Create AudioContext on first play (requires user gesture in most browsers)
-    if (!ctxRef.current || ctxRef.current.state === "closed") {
-      ctxRef.current = new AudioContext();
-    }
-    const ctx = ctxRef.current;
+    // ── Get or create the {ctx, source} pair for this element ─────────────
+    let graph = audioGraphRegistry.get(audioEl);
 
-    // Build the graph only if this is a new audio element
-    if (connectedElRef.current !== audioEl) {
-      // Disconnect previous source node (different element)
-      if (sourceRef.current) {
-        try { sourceRef.current.disconnect(); } catch { /* ignore */ }
-        sourceRef.current = null;
+    if (!graph || graph.ctx.state === "closed") {
+      // Close any previous context (element changed, or context was closed).
+      if (ctxRef.current && ctxRef.current.state !== "closed") {
+        ctxRef.current.close().catch(() => { /* ignore */ });
       }
-      if (analyserRef.current) {
-        try { analyserRef.current.disconnect(); } catch { /* ignore */ }
-        analyserRef.current = null;
-      }
-
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = SMOOTHING;
-
-      // createMediaElementSource must only be called once per element
+      const ctx    = new AudioContext();
       const source = ctx.createMediaElementSource(audioEl);
-      source.connect(analyser);
-      analyser.connect(ctx.destination); // keep playback audible
-
-      sourceRef.current = source;
-      analyserRef.current = analyser;
-      connectedElRef.current = audioEl;
-      dataRef.current = new Uint8Array(analyser.frequencyBinCount);
+      graph        = { ctx, source };
+      audioGraphRegistry.set(audioEl, graph);
     }
 
-    // Resume context that was suspended by the browser's autoplay policy
+    const { ctx, source } = graph;
+    ctxRef.current = ctx;
+
+    // ── Rebuild the analyser (lightweight; always fresh on each mount) ────
+    if (analyserRef.current) {
+      try { analyserRef.current.disconnect(); } catch { /* ignore */ }
+    }
+    // Disconnect source from any stale analyser before attaching a new one.
+    try { source.disconnect(); } catch { /* ignore */ }
+
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize              = FFT_SIZE;
+    analyser.smoothingTimeConstant = SMOOTHING;
+
+    source.connect(analyser);
+    analyser.connect(ctx.destination); // keep playback audible
+
+    analyserRef.current = analyser;
+    dataRef.current     = new Uint8Array(analyser.frequencyBinCount);
+
+    // ── Resume context (autoplay policy may have suspended it) ────────────
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => { /* ignore */ });
     }
 
-    // Start RAF loop
-    const analyser = analyserRef.current!;
-    const data = dataRef.current!;
+    // ── RAF loop ──────────────────────────────────────────────────────────
+    const data     = dataRef.current;
     const binWidth = ctx.sampleRate / FFT_SIZE;
 
     function tick() {
@@ -130,7 +153,7 @@ export function useFrequencyAnalysis(
     rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      // isPlaying changed — stop the loop (graph stays connected)
+      // isPlaying changed — stop the loop; leave graph intact.
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -138,20 +161,18 @@ export function useFrequencyAnalysis(
     };
   }, [isPlaying, audioRef]);
 
-  // ── Global cleanup on unmount ──────────────────────────────────────────────
+  // ── Global cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      try { sourceRef.current?.disconnect(); } catch { /* ignore */ }
+      // Disconnect the analyser only.
+      // Source + AudioContext are owned by audioGraphRegistry and must
+      // survive remounts so createMediaElementSource is never called twice.
       try { analyserRef.current?.disconnect(); } catch { /* ignore */ }
-      ctxRef.current?.close().catch(() => { /* ignore */ });
-      sourceRef.current = null;
       analyserRef.current = null;
-      ctxRef.current = null;
-      connectedElRef.current = null;
     };
   }, []);
 

@@ -1,0 +1,79 @@
+Build the next complete audio-reactivity control layer for Audio Reactive Studio.
+
+Extend the existing implementation rather than rebuilding it.
+
+CONTROLS
+
+Replace the placeholder content inside the existing Visualizer section of the Controls sidebar with four sliders:
+
+- Sub Influence
+- Low Influence
+- Mid Influence
+- High Influence
+
+Requirements:
+
+- Each slider ranges from 0% to 200%.
+- Display the current percentage beside each label.
+- Defaults:
+  - Sub: 140%
+  - Low: 100%
+  - Mid: 80%
+  - High: 100%
+- Store the values in App.tsx using a strongly typed settings object.
+- Pass the settings into ParticleCanvas through strongly typed props.
+- Add a Reset button that restores all four defaults.
+- Keep the controls compact and consistent with the existing dark design.
+
+AUDIO MAPPINGS
+
+Preserve the existing Sub reaction and extend the visual with these mappings:
+
+1. Sub
+- Controls particle size.
+- Controls particle brightness.
+- Controls connection-line brightness.
+- Preserve the existing fast attack and slower release.
+
+2. Low
+- Controls the apparent spread of particles away from the centre.
+- At 0% influence, Low should have no effect.
+- Apply the spread at draw time rather than permanently changing particle positions.
+- Keep the effect controlled so particles do not disappear outside the canvas.
+
+3. Mid
+- Controls subtle rotational movement around the centre.
+- At 0% influence, Mid should have no effect.
+- Avoid permanently accelerating the particles.
+- Use a smooth draw-time transformation or another non-destructive implementation.
+- Keep the rotation subtle rather than spinning the entire visual aggressively.
+
+4. High
+- Controls particle sparkle, brightness, and a subtle full-canvas flash.
+- The flash should react mainly to strong High-frequency peaks.
+- Avoid constant flickering.
+- At 0% influence, High should have no effect.
+- Keep the flash opacity restrained.
+
+TECHNICAL REQUIREMENTS
+
+- Smooth each incoming frequency band separately inside ParticleCanvas.
+- Use a reasonably fast attack and slower release for each band.
+- Do not create React state updates inside requestAnimationFrame.
+- Use refs or variables inside the existing canvas effect closure.
+- A slider value of 0% must completely disable that band's visual reaction.
+- A slider value of 100% should produce the intended normal reaction.
+- A slider value of 200% should be clearly stronger but remain visually controlled.
+- Do not change the original frequency-analysis values shown in the meters.
+- Preserve upload, playback, pausing, seeking, file changing, resizing, devicePixelRatio handling, animation cleanup, and audio cleanup.
+- Do not add sensitivity, thresholds, attack controls, release controls, templates, authentication, database, recording, rendering, or video export.
+- Keep the implementation strongly typed.
+- Run TypeScript checks and the existing code review.
+- Fix any runtime errors found during testing.
+
+After implementation, explain:
+
+- Which files changed
+- How each frequency band affects the visual
+- How the four influence values are applied
+- How the smoothing works
