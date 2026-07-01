@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { FrequencyMeters } from "@/components/FrequencyMeters";
+import { ParticleCanvas } from "@/components/ParticleCanvas";
 import { useFrequencyAnalysis } from "@/hooks/useFrequencyAnalysis";
 
 function App() {
@@ -72,21 +73,15 @@ function App() {
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] -z-10" />
 
           {/* Canvas preview — takes all remaining vertical space */}
-          <div className="flex-1 border border-border/40 rounded-xl bg-black/40 shadow-2xl flex items-center justify-center relative overflow-hidden backdrop-blur-sm min-h-0">
-            {/* Corner accents */}
-            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg" />
-            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/40 rounded-tr-lg" />
-            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary/40 rounded-bl-lg" />
-            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary/40 rounded-br-lg" />
+          <div className="flex-1 border border-border/40 rounded-xl bg-black shadow-2xl relative overflow-hidden min-h-0">
+            {/* Particle animation fills the entire area */}
+            <ParticleCanvas />
 
-            <div className="flex flex-col items-center gap-3 opacity-60">
-              <span className="text-muted-foreground font-mono text-sm uppercase tracking-[0.2em]">
-                Canvas Preview
-              </span>
-              <span className="text-[10px] text-muted-foreground/60 font-mono">
-                1920 × 1080
-              </span>
-            </div>
+            {/* Corner accents sit above the canvas */}
+            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg pointer-events-none z-10" />
+            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/40 rounded-tr-lg pointer-events-none z-10" />
+            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary/40 rounded-bl-lg pointer-events-none z-10" />
+            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary/40 rounded-br-lg pointer-events-none z-10" />
           </div>
 
           {/* Transport strip — player + frequency meters stacked */}
