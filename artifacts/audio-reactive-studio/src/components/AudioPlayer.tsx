@@ -1,15 +1,19 @@
 import {
-  useRef,
   useState,
   useEffect,
   useCallback,
+  type RefObject,
   type SyntheticEvent,
 } from "react";
 
-interface AudioPlayerProps {
+export interface AudioPlayerProps {
   src: string;
   fileName: string;
+  /** Ref owned by the parent — shared with the frequency-analysis hook. */
+  audioRef: RefObject<HTMLAudioElement | null>;
   onChangeFile: () => void;
+  /** Called whenever play/pause state changes so the parent can react. */
+  onPlayStateChange: (playing: boolean) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -19,20 +23,27 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+export function AudioPlayer({
+  src,
+  fileName,
+  audioRef,
+  onChangeFile,
+  onPlayStateChange,
+}: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
 
-  // Reset state when src changes
+  // Reset all playback state when the source changes
   useEffect(() => {
     setIsPlaying(false);
+    onPlayStateChange(false);
     setCurrentTime(0);
     setDuration(0);
     setSeekValue(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   const handleLoadedMetadata = useCallback(
@@ -55,12 +66,14 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
 
   const handleEnded = useCallback(() => {
     setIsPlaying(false);
+    onPlayStateChange(false);
     setCurrentTime(0);
     setSeekValue(0);
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioRef]);
 
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -68,13 +81,13 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
+      onPlayStateChange(false);
     } else {
-      audio.play().catch(() => {
-        /* autoplay policy — no-op */
-      });
+      audio.play().catch(() => { /* autoplay policy — no-op */ });
       setIsPlaying(true);
+      onPlayStateChange(true);
     }
-  }, [isPlaying]);
+  }, [isPlaying, audioRef, onPlayStateChange]);
 
   // Seek slider handlers
   function handleSeekStart(e: React.ChangeEvent<HTMLInputElement>) {
@@ -100,7 +113,7 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      {/* Hidden native audio element */}
+      {/* Audio element — ref is owned by App and shared with useFrequencyAnalysis */}
       <audio
         ref={audioRef}
         src={src}
@@ -113,7 +126,6 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
       {/* File info row */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 min-w-0">
-          {/* Music note icon */}
           <svg
             className="w-3.5 h-3.5 text-primary shrink-0"
             viewBox="0 0 24 24"
@@ -137,9 +149,9 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
         </button>
       </div>
 
-      {/* Controls row */}
+      {/* Transport row */}
       <div className="flex items-center gap-4">
-        {/* Play / Pause button */}
+        {/* Play / Pause */}
         <button
           onClick={togglePlayPause}
           type="button"
@@ -147,13 +159,11 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
           className="w-8 h-8 rounded-full bg-primary/10 border border-primary/40 hover:bg-primary/20 transition-colors flex items-center justify-center shrink-0"
         >
           {isPlaying ? (
-            /* Pause icon */
             <svg className="w-3 h-3 text-primary" viewBox="0 0 24 24" fill="currentColor">
               <rect x="6" y="4" width="4" height="16" rx="1" />
               <rect x="14" y="4" width="4" height="16" rx="1" />
             </svg>
           ) : (
-            /* Play icon — shifted right 1px for optical centering */
             <svg className="w-3 h-3 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5,3 19,12 5,21" />
             </svg>
@@ -167,9 +177,7 @@ export function AudioPlayer({ src, fileName, onChangeFile }: AudioPlayerProps) {
 
         {/* Seek slider */}
         <div className="relative flex-1 h-4 flex items-center">
-          {/* Track background */}
           <div className="absolute inset-x-0 h-[3px] rounded-full bg-border/60" />
-          {/* Filled track */}
           <div
             className="absolute left-0 h-[3px] rounded-full bg-primary/70 pointer-events-none"
             style={{ width: `${progress}%` }}

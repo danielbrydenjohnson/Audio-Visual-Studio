@@ -1,12 +1,21 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { FrequencyMeters } from "@/components/FrequencyMeters";
+import { useFrequencyAnalysis } from "@/hooks/useFrequencyAnalysis";
 
 function App() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Single ref for the <audio> element — shared with AudioPlayer and the analysis hook
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   // Track the current object URL so we can revoke it when replaced or on unmount
   const currentUrlRef = useRef<string | null>(null);
+
+  // Live frequency band values (0–100 each), updated every animation frame
+  const bands = useFrequencyAnalysis(audioRef, isPlaying);
 
   // Revoke the object URL when the component unmounts
   useEffect(() => {
@@ -19,7 +28,6 @@ function App() {
   }, []);
 
   const handleFile = useCallback((file: File) => {
-    // Revoke the previous object URL to avoid memory leaks
     if (currentUrlRef.current) {
       URL.revokeObjectURL(currentUrlRef.current);
     }
@@ -27,6 +35,7 @@ function App() {
     currentUrlRef.current = url;
     setAudioUrl(url);
     setFileName(file.name);
+    setIsPlaying(false);
   }, []);
 
   const handleChangeFile = useCallback(() => {
@@ -36,7 +45,10 @@ function App() {
     }
     setAudioUrl(null);
     setFileName(null);
+    setIsPlaying(false);
   }, []);
+
+  const hasAudio = audioUrl !== null && fileName !== null;
 
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col overflow-hidden font-sans selection:bg-primary/30">
@@ -54,12 +66,12 @@ function App() {
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Left column: preview + transport */}
+        {/* Left column: canvas preview + transport strip */}
         <section className="flex-1 flex flex-col bg-muted/10 p-6 gap-4 relative isolate overflow-hidden">
           {/* Subtle grid background */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] -z-10" />
 
-          {/* Canvas preview — takes remaining space */}
+          {/* Canvas preview — takes all remaining vertical space */}
           <div className="flex-1 border border-border/40 rounded-xl bg-black/40 shadow-2xl flex items-center justify-center relative overflow-hidden backdrop-blur-sm min-h-0">
             {/* Corner accents */}
             <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg" />
@@ -77,16 +89,23 @@ function App() {
             </div>
           </div>
 
-          {/* Transport strip — fixed height below preview */}
-          <div className="h-20 rounded-xl border border-border/40 bg-card/60 backdrop-blur-sm px-5 flex items-center shrink-0">
-            {audioUrl && fileName ? (
-              <AudioPlayer
-                src={audioUrl}
-                fileName={fileName}
-                onChangeFile={handleChangeFile}
-              />
+          {/* Transport strip — player + frequency meters stacked */}
+          <div className="rounded-xl border border-border/40 bg-card/60 backdrop-blur-sm px-5 py-4 flex flex-col gap-4 shrink-0">
+            {hasAudio ? (
+              <>
+                <AudioPlayer
+                  src={audioUrl}
+                  fileName={fileName}
+                  audioRef={audioRef}
+                  onChangeFile={handleChangeFile}
+                  onPlayStateChange={setIsPlaying}
+                />
+                <FrequencyMeters bands={bands} />
+              </>
             ) : (
-              <AudioUpload onFile={handleFile} />
+              <div className="h-14 flex items-center">
+                <AudioUpload onFile={handleFile} />
+              </div>
             )}
           </div>
         </section>
