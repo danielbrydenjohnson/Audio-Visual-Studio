@@ -37,18 +37,36 @@ template renders **nothing** (no throw, no obvious error). Pack scalars into vec
 Orbital Swarm (18) and Pulse Tunnel (17) rendered blank until packed down.
 **How to apply:** count attributes whenever adding per-vertex data to a template.
 
-## Recorded post-processing must end on the canvas
-Kaleidoscope (and any post pass) uses a persistent `WebGLRenderTarget` + fullscreen
-fold shader. Off → render scene straight to canvas. On → render scene to the RT, then
-render the fullscreen pass to the **default framebuffer (canvas)**. The final draw
-MUST target `renderer.domElement`, because `captureStream(60)` records that canvas —
-if the last render goes to an RT instead, recording captures nothing.
+## Final composite: one RT → one shader for BOTH modes
+Both normal AND kaleidoscope modes render scene → persistent `WebGLRenderTarget` →
+ONE fullscreen shader → canvas. The shader branches the kaleidoscope fold on a
+`uKaleidoscope` uniform (no rebuild), then ALWAYS applies global brightness
+`out = 1 - pow(1 - c, uBrightness)` (uBrightness = brightness/100, c clamped 0..1).
+The final draw MUST target `renderer.domElement` (null RT), because `captureStream`
+records that canvas — if the last render lands on an RT, recording captures nothing.
 
-**Why:** the recorder taps the live canvas, not the scene.
-**How to apply:** resize the RT in `applyFraming` to the exact output dims (see the
-recording-resolution section — the buffer is NOT multiplied by DPR); set RT texture
-wrap to MirroredRepeat so radial samples outside [0,1] fold seamlessly; dispose the
-RT/quad geo/material only at unmount, never on toggle.
+**Why routing the previously-direct normal path through the RT is safe (no color shift):**
+`THREE.ColorManagement.enabled = false` is set globally (so palette hex renders as
+authored under additive blending). With color management OFF, three does NO
+linear/sRGB conversion on output, so raw colors are written identically whether the
+bound target is the canvas or an 8-bit (default `UnsignedByteType`) RT cleared to the
+same clear color; additive overflow clamps to 1.0 in both. Hence scene→RT→passthrough
+is pixel-identical to scene→canvas, and brightness `1-pow(1-c,1)` is exact identity at
+100% — so unifying the two paths preserves the previous default look. Do NOT add a
+linear→sRGB / gamma output pass here; it would double-darken since nothing upstream
+encoded to sRGB.
+
+**MSAA:** rendering through an RT loses the renderer's `antialias:true` (that applies
+only to the default framebuffer), so add `samples: 4` to the `WebGLRenderTarget` to
+restore edge AA on the off-screen pass. three ≥ r163 is WebGL2-only (WebGL1 removed),
+so RT multisampling is always available wherever the app actually renders — no WebGL1
+fallback to guard.
+
+**How to apply:** resize the RT in `applyFraming` to the exact output dims (buffer NOT
+multiplied by DPR); set RT texture wrap to MirroredRepeat so radial samples outside
+[0,1] fold seamlessly; per-frame updates are plain uniform writes
+(uKaleidoscope/uSegments/uBrightness) — no shader rebuild, no per-frame allocation;
+dispose RT/quad geo/material only at unmount, never on toggle.
 
 ## GLSL ES 1.0 uniform-array indexing gotcha
 Three.js `ShaderMaterial` defaults to GLSL ES 1.00, which forbids indexing a

@@ -10,15 +10,19 @@
 export type AspectRatioId = "16:9" | "9:16" | "1:1";
 export type ResolutionId  = "720p" | "1080p";
 export type FrameRateId   = 30 | 60;
+/** Recording container. MP4 requires genuine native MediaRecorder support. */
+export type OutputFormatId = "mp4" | "webm";
 
 export interface OutputSettings {
+  format:      OutputFormatId;
   aspectRatio: AspectRatioId;
   resolution:  ResolutionId;
   frameRate:   FrameRateId;
 }
 
-/** Sensible central defaults: 16:9 landscape, 1080p, 60 fps. */
+/** Sensible central defaults: MP4, 16:9 landscape, 1080p, 60 fps. */
 export const DEFAULT_OUTPUT_SETTINGS: OutputSettings = {
+  format:      "mp4",
   aspectRatio: "16:9",
   resolution:  "1080p",
   frameRate:   60,
@@ -73,3 +77,64 @@ export const FRAME_RATE_OPTIONS: { value: FrameRateId; label: string }[] = [
   { value: 30, label: "30 fps" },
   { value: 60, label: "60 fps" },
 ];
+
+export const OUTPUT_FORMAT_OPTIONS: { value: OutputFormatId; label: string }[] = [
+  { value: "mp4",  label: "MP4" },
+  { value: "webm", label: "WebM" },
+];
+
+// ─── Native recording MIME support ───────────────────────────────────────────
+// A format only records if MediaRecorder.isTypeSupported() confirms a concrete
+// MIME type for it. MP4 support in particular varies by browser, so we never
+// assume it — and we never fall back across containers (that would produce a
+// file whose real contents disagree with the requested/named format).
+
+/** Candidate MP4 MIME types, most-specific first. */
+export const MP4_MIME_CANDIDATES = [
+  "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+  "video/mp4;codecs=avc1.4D401F,mp4a.40.2",
+  "video/mp4;codecs=avc1,mp4a.40.2",
+  "video/mp4",
+];
+
+/** Candidate WebM MIME types, most-capable first. */
+export const WEBM_MIME_CANDIDATES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm",
+];
+
+function mimeCandidatesFor(format: OutputFormatId): string[] {
+  return format === "mp4" ? MP4_MIME_CANDIDATES : WEBM_MIME_CANDIDATES;
+}
+
+/**
+ * The first genuinely-supported MIME type for a format, or "" if the browser
+ * cannot natively record that container. Never crosses containers.
+ */
+export function pickMimeTypeForFormat(format: OutputFormatId): string {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
+  for (const mime of mimeCandidatesFor(format)) {
+    if (MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return "";
+}
+
+/** True when the browser can natively record the given format. */
+export function isFormatSupported(format: OutputFormatId): boolean {
+  return pickMimeTypeForFormat(format) !== "";
+}
+
+/**
+ * Derive the true container (and therefore file extension) from a REAL
+ * MediaRecorder MIME type — never from the user's selection — so the extension
+ * always matches the bytes in the Blob.
+ */
+export function containerFromMime(mime: string): OutputFormatId {
+  return mime.toLowerCase().includes("mp4") ? "mp4" : "webm";
+}
+
+/** Human-facing format label, e.g. "MP4" / "WebM". */
+export function formatDisplayName(format: OutputFormatId): string {
+  return format === "mp4" ? "MP4" : "WebM";
+}

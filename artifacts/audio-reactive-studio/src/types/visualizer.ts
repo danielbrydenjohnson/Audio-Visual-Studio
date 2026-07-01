@@ -53,6 +53,13 @@ export interface ParticleVisualSettings {
   palette:     PaletteName;
   /** Glow intensity, 0–100 %. */
   glow:        number;
+  /**
+   * Global output brightness, 50–200 %. Applied once in the final compositing
+   * shader (not per template): 100 % is identity, higher values lift shadows and
+   * mid-tones while preserving black and rolling off highlights. Kept separate
+   * from Glow — Glow shapes luminous elements, Brightness scales the final image.
+   */
+  brightness:  number;
 }
 
 export const DEFAULT_VISUAL_SETTINGS: ParticleVisualSettings = {
@@ -62,6 +69,7 @@ export const DEFAULT_VISUAL_SETTINGS: ParticleVisualSettings = {
   depth:       100,
   palette:     "cyanViolet",
   glow:        30,
+  brightness:  125,
 };
 
 /**

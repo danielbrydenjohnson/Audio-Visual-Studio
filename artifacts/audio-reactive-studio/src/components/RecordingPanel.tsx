@@ -23,7 +23,10 @@ interface RecordingPanelProps {
 }
 
 export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
-  const { status, elapsedMs, videoUrl, error, canRecord, start, stop, clear, download } = recorder;
+  const {
+    status, elapsedMs, videoUrl, error, canRecord, formatSupported, recorded,
+    start, stop, clear, download,
+  } = recorder;
   const isRecording = status === "recording";
   const isStarting = status === "starting";
   const hasRecording = status === "recorded" && videoUrl !== null;
@@ -59,9 +62,9 @@ export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
         <button
           type="button"
           onClick={start}
-          disabled={!canRecord || isRecording || isStarting}
+          disabled={!canRecord || !formatSupported || isRecording || isStarting}
           className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[11px] font-mono text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/10"
-          title={!canRecord ? "Load an audio file to enable recording" : "Start recording from the beginning"}
+          title={!canRecord ? "Load an audio file to enable recording" : !formatSupported ? "The selected output format isn't supported by this browser" : "Start recording from the beginning"}
         >
           <span className="w-2 h-2 rounded-full bg-red-500" />
           Start
@@ -84,9 +87,19 @@ export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
         </p>
       )}
 
-      {/* Preview + download + clear */}
+      {/* Preview + metadata + download + clear */}
       {hasRecording && (
         <div className="space-y-3">
+          {recorded && (
+            <div className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5">
+              <span className="text-[10px] font-mono font-medium text-foreground/80">
+                {recorded.container.toUpperCase()}
+              </span>
+              <span className="text-[10px] font-mono tabular-nums text-muted-foreground/70">
+                {recorded.width}×{recorded.height} · {recorded.aspectRatio} · {recorded.frameRate} fps
+              </span>
+            </div>
+          )}
           <div className="rounded-md overflow-hidden border border-border/50 bg-black">
             <video
               src={videoUrl}

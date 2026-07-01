@@ -1,0 +1,291 @@
+Add native MP4 recording support and a global Brightness control to Audio Reactive Studio.
+
+The current application correctly records and downloads WebM files. It also has working aspect ratio, resolution, frame-rate, template, audio-reactivity, Kaleidoscope, preview, and download features.
+
+Do not rebuild the renderer, audio graph, recording workflow, templates, or interface.
+
+PART 1: OUTPUT FORMAT
+
+Add an Output Format control inside the existing Output section.
+
+Options:
+
+- MP4
+- WebM
+
+Default:
+
+- MP4
+
+Use a strongly typed output format setting.
+
+The interface must clearly show whether the selected format is supported by the current browser.
+
+Do not create files with an extension that does not match their real MIME type.
+
+Do not rename a WebM Blob to .mp4.
+
+NATIVE MP4 DETECTION
+
+Before recording, use MediaRecorder.isTypeSupported() to detect genuine native MP4 recording support.
+
+Try suitable MP4 MIME types in this order:
+
+1. video/mp4;codecs=avc1.42E01E,mp4a.40.2
+2. video/mp4;codecs=avc1.4D401F,mp4a.40.2
+3. video/mp4;codecs=avc1,mp4a.40.2
+4. video/mp4
+
+Use only a MIME type for which MediaRecorder.isTypeSupported() returns true.
+
+For WebM, preserve a supported fallback order such as:
+
+1. video/webm;codecs=vp9,opus
+2. video/webm;codecs=vp8,opus
+3. video/webm
+
+Do not assume that all browsers support the same codecs.
+
+SUPPORTED FORMAT BEHAVIOUR
+
+When MP4 is selected and supported:
+
+- Record a genuine MP4 Blob
+- Use the actual MediaRecorder MIME type
+- Preview it in the existing HTML video player
+- Download it with a .mp4 extension
+- Use the existing resolution, aspect-ratio, and frame-rate settings
+- Include the original audio
+- Include Kaleidoscope when enabled
+
+When WebM is selected:
+
+- Preserve the current working WebM workflow
+- Download with a .webm extension
+
+When MP4 is selected but unsupported:
+
+- Do not silently create WebM
+- Do not silently change the file extension
+- Disable Start Recording or show a clear blocking message
+- Explain that native MP4 recording is not supported by the current browser
+- Provide a clear button or action to switch the format to WebM
+- Do not add FFmpeg or browser conversion during this task
+
+Show a small status beneath Output Format, such as:
+
+- Native MP4 supported
+- WebM supported
+- MP4 unavailable in this browser
+
+Use restrained styling rather than a large warning banner.
+
+ACTUAL MIME TYPE
+
+After creating MediaRecorder:
+
+- Read recorder.mimeType
+- Store the actual MIME type used
+- Use it when constructing the final Blob
+- Derive the correct output extension from the real MIME type
+- Do not rely only on the user's selected option
+
+Update the recording summary or preview metadata to show:
+
+- Format
+- Resolution
+- Aspect ratio
+- Frame rate
+
+FILE NAMING
+
+For MP4:
+
+track-name-visual-1080p-landscape.mp4
+
+For WebM:
+
+track-name-visual-1080p-landscape.webm
+
+Preserve the existing naming logic for portrait and square formats.
+
+PART 2: GLOBAL BRIGHTNESS
+
+The live visual currently looks slightly too dim.
+
+Add a global Brightness control inside Color & Post.
+
+Brightness:
+
+- Range: 50% to 200%
+- Default: 125%
+- Display the current percentage
+- Include it in Reset Visuals
+- Store it in the existing strongly typed visual settings
+
+This is a global final-output control.
+
+It must affect:
+
+- Every visual template
+- Normal preview
+- Kaleidoscope preview
+- Recorded video
+- Downloaded MP4
+- Downloaded WebM
+
+It must not affect:
+
+- The application interface
+- Controls
+- Frequency meters
+- Audio playback
+
+IMPLEMENTATION OF BRIGHTNESS
+
+Do not use:
+
+- CSS filter: brightness()
+- Canvas opacity
+- A transparent HTML overlay
+- Per-template manual colour edits
+- Duplicated brightness logic inside seven templates
+
+Apply brightness inside the final WebGL compositing output.
+
+The preferred architecture is:
+
+1. Render the active scene to the existing render target
+2. Send the texture through the final full-screen shader
+3. Apply Kaleidoscope UV transformation only when Kaleidoscope is enabled
+4. Apply the global Brightness multiplier to the final sampled colour
+5. Render the result to the existing visible renderer canvas
+
+The same final shader should support:
+
+- Normal mode without Kaleidoscope
+- Kaleidoscope mode
+- Brightness adjustment in both modes
+
+Do not create another visible canvas.
+
+Do not replace the renderer canvas.
+
+Do not create another renderer or animation loop.
+
+The recording system must continue using captureStream() on the same existing canvas.
+
+BRIGHTNESS QUALITY
+
+At 100%, preserve the current appearance.
+
+At 125%, the visual should be noticeably brighter without destroying colour detail.
+
+At 200%, the image should be much brighter but should avoid turning every bright element into flat white where practical.
+
+Preserve black backgrounds.
+
+Do not brighten black into grey.
+
+Use restrained clamping or exposure-style colour handling if required.
+
+The existing Glow control must remain separate:
+
+- Glow controls the appearance of luminous elements
+- Brightness controls the final overall visual output
+
+Do not combine them into one setting.
+
+PERFORMANCE
+
+- Reuse the existing render target and final shader resources
+- Do not allocate new render targets every frame
+- Do not recreate the shader when Brightness changes
+- Update Brightness through a uniform
+- Do not create React state updates inside requestAnimationFrame
+- Preserve performance at 1080p and 60 fps
+- Preserve the current device-pixel-ratio handling
+
+DISABLE DURING RECORDING
+
+Disable Output Format while recording.
+
+Brightness may remain disabled during recording so the preview cannot diverge from the captured output.
+
+Preserve the current disabling behaviour for:
+
+- Template
+- Aspect ratio
+- Resolution
+- Frame rate
+- Kaleidoscope
+- Kaleidoscope segments
+
+PRESERVE ALL EXISTING FUNCTIONALITY
+
+Do not break:
+
+- MP3 and WAV upload
+- Play
+- Pause
+- Seeking
+- File replacement
+- Low, Mid, and High analysis
+- Frequency meters
+- Audio influence controls
+- All seven visual templates
+- Visual Density
+- Motion Speed
+- Element Size
+- Depth
+- Glow
+- Palette
+- Kaleidoscope
+- Kaleidoscope segments
+- Aspect ratio
+- Resolution
+- Frame rate
+- Manual recording stop
+- Automatic recording stop
+- Recorded video preview
+- Duplicate MediaElementAudioSourceNode protection
+- Audio routing
+- Renderer cleanup
+- Template cleanup
+- Recording cleanup
+
+VALIDATION
+
+Test:
+
+1. Open the application and report which MP4 MIME type is supported.
+2. Select MP4.
+3. Record a short 1080p landscape clip.
+4. Confirm the downloaded file is a genuine .mp4.
+5. Confirm it opens and contains both picture and sound.
+6. Confirm the HTML video preview plays it.
+7. Record a WebM and confirm the existing workflow still works.
+8. Confirm the Blob MIME type and filename extension always match.
+9. Test Brightness at 50%, 100%, 125%, and 200%.
+10. Confirm Brightness works with Kaleidoscope off.
+11. Confirm Brightness works with Kaleidoscope on.
+12. Test one point template, Cube Swarm, Laser Lattice, and Wireframe Bloom.
+13. Record with Brightness set to 125%.
+14. Confirm the downloaded recording matches the live preview brightness.
+15. Test landscape, portrait, and square formats.
+16. Confirm there is still only one visible renderer canvas.
+17. Confirm no duplicate renderers, render targets, WebGL contexts, or animation loops.
+18. Refresh and repeat.
+19. Run TypeScript checks.
+20. Fix all runtime errors.
+
+After implementation, explain:
+
+- Which files changed
+- Which MP4 MIME types were tested
+- Which format the current browser supports
+- How the real Blob MIME type determines the extension
+- How unsupported MP4 is handled
+- How Brightness is applied in the final shader
+- How normal and Kaleidoscope rendering share the final composite path
+- How the recorded result remains identical to the live preview

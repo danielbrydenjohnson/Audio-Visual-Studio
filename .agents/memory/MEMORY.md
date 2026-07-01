@@ -1,2 +1,3 @@
 - [WebGL & audio singletons](webgl-audio-singletons.md) — guard AudioContext source + WebGLRenderer against StrictMode/HMR remount; screenshot browser has no WebGL.
-- [Visual template system](visual-template-system.md) — one shared renderer/canvas, hot-swap one Object3D root; shaders <=16 vertex attrs or silent link fail; recorded post-pass must end on canvas.
+- [Visual template system](visual-template-system.md) — shared renderer/canvas; hot-swap one Object3D root; <=16 vertex attrs/shader or silent link fail; both modes composite scene→RT→one shader→canvas.
+- [MediaRecorder container/MIME](mediarecorder-container-mime.md) — derive blob type + extension from real recorder.mimeType; explicit per-container isTypeSupported; never cross containers.

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { FrequencyMeters } from "@/components/FrequencyMeters";
@@ -20,15 +20,19 @@ import {
 } from "@/visuals/types";
 import {
   type OutputSettings,
+  type OutputFormatId,
   type AspectRatioId,
   type ResolutionId,
   type FrameRateId,
   DEFAULT_OUTPUT_SETTINGS,
   getOutputDimensions,
   formatLabelOf,
+  isFormatSupported,
+  formatDisplayName,
   ASPECT_OPTIONS,
   RESOLUTION_OPTIONS,
   FRAME_RATE_OPTIONS,
+  OUTPUT_FORMAT_OPTIONS,
 } from "@/types/output";
 
 // ─── Shared control styles ────────────────────────────────────────────────────
@@ -289,9 +293,20 @@ function App() {
   const outputDims  = getOutputDimensions(output.aspectRatio, output.resolution);
   const formatLabel = formatLabelOf(output);
 
+  // Whether the currently-selected container can be natively recorded here, plus
+  // the small status text shown beneath the Output Format control.
+  const selectedFormatSupported = useMemo(() => isFormatSupported(output.format), [output.format]);
+  const otherFormat: OutputFormatId = output.format === "mp4" ? "webm" : "mp4";
+  const formatStatusText = selectedFormatSupported
+    ? (output.format === "mp4" ? "Native MP4 supported" : "WebM supported")
+    : `${formatDisplayName(output.format)} unavailable in this browser`;
+
   const recorder = useRecorder({
     audioRef, canvas, ensureAudioGraph, fileName,
     frameRate: output.frameRate, formatLabel,
+    format: output.format,
+    aspectRatio: output.aspectRatio,
+    resolution: output.resolution,
   });
 
   // Revoke object URL on unmount.
@@ -535,6 +550,13 @@ function App() {
                   max={100}
                   onChange={v => setVisual("glow", v)}
                 />
+                <ControlSlider
+                  label="Brightness"
+                  value={visualSettings.brightness}
+                  min={50}
+                  max={200}
+                  onChange={v => setVisual("brightness", v)}
+                />
 
                 <ControlToggle
                   label="Kaleidoscope"
@@ -568,6 +590,44 @@ function App() {
             {/* ── Output / Recording Section ── */}
             <RecordingPanel recorder={recorder}>
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <ControlSelect
+                    label="Output Format"
+                    value={output.format}
+                    disabled={recordingLocked}
+                    options={OUTPUT_FORMAT_OPTIONS}
+                    onChange={v => setOutputSetting("format", v as OutputFormatId)}
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${selectedFormatSupported ? "bg-emerald-500" : "bg-amber-500"}`}
+                    />
+                    <span className="text-[10px] font-mono text-muted-foreground/70">
+                      {formatStatusText}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Native format unavailable: block recording + offer a one-click
+                    switch (never silently record the other container or mislabel
+                    the file). */}
+                {!selectedFormatSupported && (
+                  <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2">
+                    <p className="text-[10px] font-mono leading-relaxed text-amber-400/90">
+                      Native {formatDisplayName(output.format)} recording isn’t available in this
+                      browser. Switch to {formatDisplayName(otherFormat)} to record.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setOutputSetting("format", otherFormat)}
+                      disabled={recordingLocked}
+                      className="w-full rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[10px] font-mono text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Switch to {formatDisplayName(otherFormat)}
+                    </button>
+                  </div>
+                )}
+
                 <ControlSelect
                   label="Aspect Ratio"
                   value={output.aspectRatio}
@@ -593,7 +653,7 @@ function App() {
                 <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/70">
                   <span>Recording</span>
                   <span className="tabular-nums text-foreground/60">
-                    {outputDims.width} × {outputDims.height} · {output.frameRate} fps
+                    {formatDisplayName(output.format)} · {outputDims.width} × {outputDims.height} · {output.frameRate} fps
                   </span>
                 </div>
 

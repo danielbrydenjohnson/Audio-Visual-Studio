@@ -1,7 +1,29 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioGraphHandle } from "@/hooks/useFrequencyAnalysis";
+import {
+  type OutputFormatId,
+  type AspectRatioId,
+  type ResolutionId,
+  getOutputDimensions,
+  pickMimeTypeForFormat,
+  isFormatSupported,
+  containerFromMime,
+} from "@/types/output";
 
 export type RecordingStatus = "idle" | "starting" | "recording" | "recorded" | "error";
+
+/** Metadata describing a produced recording, derived from the REAL recorder output. */
+export interface RecordedInfo {
+  /** True container derived from the recorder's real MIME type. */
+  container:   OutputFormatId;
+  /** The exact MIME type MediaRecorder produced. */
+  mimeType:    string;
+  aspectRatio: AspectRatioId;
+  resolution:  ResolutionId;
+  width:       number;
+  height:      number;
+  frameRate:   number;
+}
 
 export interface RecorderState {
   status:      RecordingStatus;
@@ -10,6 +32,10 @@ export interface RecorderState {
   error:       string | null;
   /** True when a recording can be started (canvas + audio + browser support). */
   canRecord:   boolean;
+  /** True when the SELECTED output format can be natively recorded in this browser. */
+  formatSupported: boolean;
+  /** Metadata about the last produced recording, or null before one exists. */
+  recorded:    RecordedInfo | null;
   start:       () => void;
   stop:        () => void;
   clear:       () => void;
@@ -25,24 +51,15 @@ export interface UseRecorderArgs {
   frameRate:        number;
   /** Format label baked into the download filename, e.g. "1080p-landscape". */
   formatLabel:      string;
+  /** Selected recording container. MP4 requires native browser support. */
+  format:           OutputFormatId;
+  /** Selected aspect ratio — recorded into the file metadata for display. */
+  aspectRatio:      AspectRatioId;
+  /** Selected resolution — recorded into the file metadata for display. */
+  resolution:       ResolutionId;
 }
-
-// Preferred WebM MIME types, most-capable first.
-const MIME_CANDIDATES = [
-  "video/webm;codecs=vp9,opus",
-  "video/webm;codecs=vp8,opus",
-  "video/webm",
-];
 
 const TIMER_INTERVAL_MS = 250; // ~4 updates/sec
-
-function pickMimeType(): string {
-  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return "";
-  for (const mime of MIME_CANDIDATES) {
-    if (MediaRecorder.isTypeSupported(mime)) return mime;
-  }
-  return ""; // let the browser choose its default
-}
 
 function mediaRecorderSupported(): boolean {
   return typeof MediaRecorder !== "undefined";
@@ -52,11 +69,15 @@ function captureStreamSupported(canvas: HTMLCanvasElement | null): boolean {
   return !!canvas && typeof canvas.captureStream === "function";
 }
 
-/** Build "<track-name>-visual-<format>.webm" from the file name + output format. */
-function makeDownloadName(fileName: string | null, formatLabel: string): string {
+/**
+ * Build "<track-name>-visual-<format>.<ext>". The extension is derived from the
+ * REAL recorder MIME type (via containerFromMime), never from the user's
+ * selection — so the extension always matches the bytes inside the Blob.
+ */
+function makeDownloadName(fileName: string | null, formatLabel: string, ext: string): string {
   const base   = (fileName ?? "recording").replace(/\.[^/.]+$/, "");
   const suffix = formatLabel ? `-${formatLabel}` : "";
-  return `${base || "recording"}-visual${suffix}.webm`;
+  return `${base || "recording"}-visual${suffix}.${ext}`;
 }
 
 /**
@@ -66,11 +87,13 @@ function makeDownloadName(fileName: string | null, formatLabel: string): string 
  */
 export function useRecorder({
   audioRef, canvas, ensureAudioGraph, fileName, frameRate, formatLabel,
+  format, aspectRatio, resolution,
 }: UseRecorderArgs): RecorderState {
   const [status,    setStatus]    = useState<RecordingStatus>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [videoUrl,  setVideoUrl]  = useState<string | null>(null);
   const [error,     setError]     = useState<string | null>(null);
+  const [recorded,  setRecorded]  = useState<RecordedInfo | null>(null);
 
   // Imperative handles — never trigger renders, safe to touch from callbacks.
   const recorderRef     = useRef<MediaRecorder | null>(null);
@@ -97,11 +120,24 @@ export function useRecorder({
   const ensureAudioGraphRef = useRef(ensureAudioGraph);
   const frameRateRef        = useRef(frameRate);
   const formatLabelRef      = useRef(formatLabel);
+  const formatRef           = useRef(format);
+  const aspectRatioRef      = useRef(aspectRatio);
+  const resolutionRef       = useRef(resolution);
   canvasRef.current           = canvas;
   fileNameRef.current         = fileName;
   ensureAudioGraphRef.current = ensureAudioGraph;
   frameRateRef.current        = frameRate;
   formatLabelRef.current      = formatLabel;
+  formatRef.current           = format;
+  aspectRatioRef.current      = aspectRatio;
+  resolutionRef.current       = resolution;
+
+  // Real MIME type the recorder produced + a metadata snapshot taken at start.
+  const recordedMimeRef = useRef<string>("");
+  const metaRef = useRef<{
+    aspectRatio: AspectRatioId; resolution: ResolutionId;
+    width: number; height: number; frameRate: number;
+  } | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -177,6 +213,11 @@ export function useRecorder({
       fail("Load an audio file before recording.");
       return;
     }
+    if (!isFormatSupported(formatRef.current)) {
+      const alt = formatRef.current === "mp4" ? "WebM" : "MP4";
+      fail(`Native ${formatRef.current.toUpperCase()} recording isn’t supported by this browser. Switch the output format to ${alt}.`);
+      return;
+    }
 
     const graph = ensureAudioGraphRef.current();
     if (!graph) {
@@ -207,6 +248,18 @@ export function useRecorder({
         audio.currentTime = 0;
 
         const fps = frameRateRef.current > 0 ? frameRateRef.current : 60;
+
+        // Snapshot the output metadata for this recording. Output is locked while
+        // recording, so these values can't change mid-capture.
+        const dims = getOutputDimensions(aspectRatioRef.current, resolutionRef.current);
+        metaRef.current = {
+          aspectRatio: aspectRatioRef.current,
+          resolution:  resolutionRef.current,
+          width:       dims.width,
+          height:      dims.height,
+          frameRate:   fps,
+        };
+
         const canvasStream = canvasEl!.captureStream(fps);
         const videoTracks  = canvasStream.getVideoTracks();
         if (videoTracks.length === 0) {
@@ -218,12 +271,17 @@ export function useRecorder({
 
         const combined = new MediaStream([...videoTracks, ...audioTracks]);
 
-        const mimeType = pickMimeType();
+        // Concrete, genuinely-supported MIME for the SELECTED format. Guarded
+        // synchronously above; re-checked here. We never cross containers.
+        const mimeType = pickMimeTypeForFormat(formatRef.current);
+        if (!mimeType) {
+          stopCanvasTracks();
+          fail(`Native ${formatRef.current.toUpperCase()} recording isn’t supported by this browser.`);
+          return;
+        }
         let recorder: MediaRecorder;
         try {
-          recorder = mimeType
-            ? new MediaRecorder(combined, { mimeType })
-            : new MediaRecorder(combined);
+          recorder = new MediaRecorder(combined, { mimeType });
         } catch {
           stopCanvasTracks();
           fail("Recording failed to start (recorder could not be created).");
@@ -260,17 +318,31 @@ export function useRecorder({
             setStatus("error");
             return;
           }
-          const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+          // The REAL MIME type the recorder produced — the single source of truth
+          // for the Blob type, the file extension and the displayed format.
+          const realMime = recorder.mimeType || mimeType;
+          const blob = new Blob(chunks, { type: realMime });
           if (blob.size === 0) {
             setError("The recorder stopped without producing any video data.");
             setStatus("error");
             return;
           }
+          recordedMimeRef.current = realMime;
           // Revoke a previous preview before replacing it.
           if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
           const url = URL.createObjectURL(blob);
           videoUrlRef.current = url;
           setVideoUrl(url);
+          const meta = metaRef.current;
+          setRecorded({
+            container:   containerFromMime(realMime),
+            mimeType:    realMime,
+            aspectRatio: meta?.aspectRatio ?? aspectRatioRef.current,
+            resolution:  meta?.resolution ?? resolutionRef.current,
+            width:       meta?.width ?? 0,
+            height:      meta?.height ?? 0,
+            frameRate:   meta?.frameRate ?? frameRateRef.current,
+          });
           setStatus("recorded");
         };
 
@@ -335,6 +407,8 @@ export function useRecorder({
       videoUrlRef.current = null;
     }
     setVideoUrl(null);
+    setRecorded(null);
+    recordedMimeRef.current = "";
     setElapsedMs(0);
     setError(null);
     setStatus("idle");
@@ -343,9 +417,12 @@ export function useRecorder({
   const download = useCallback(() => {
     const url = videoUrlRef.current;
     if (!url) return;
+    // Extension is derived from the REAL recorded MIME type, so it always matches
+    // the Blob's contents (a WebM Blob is never handed a .mp4 name, or vice-versa).
+    const ext = containerFromMime(recordedMimeRef.current || "video/webm");
     const a = document.createElement("a");
     a.href = url;
-    a.download = makeDownloadName(fileNameRef.current, formatLabelRef.current);
+    a.download = makeDownloadName(fileNameRef.current, formatLabelRef.current, ext);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -384,6 +461,10 @@ export function useRecorder({
 
   const canRecord =
     !!canvas && mediaRecorderSupported() && captureStreamSupported(canvas) && fileName !== null;
+  const formatSupported = isFormatSupported(format);
 
-  return { status, elapsedMs, videoUrl, error, canRecord, start, stop, clear, download };
+  return {
+    status, elapsedMs, videoUrl, error, canRecord, formatSupported, recorded,
+    start, stop, clear, download,
+  };
 }

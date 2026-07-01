@@ -65,7 +65,10 @@ function expSmooth(current: number, target: number): number {
   return current + (target - current) * coeff;
 }
 
-// Fullscreen kaleidoscope pass: fold the rendered scene into N mirrored wedges.
+// Fullscreen FINAL COMPOSITE pass. Runs every frame in BOTH modes: it samples the
+// rendered scene from the render target, optionally folds it into N mirrored
+// kaleidoscope wedges (only when uKaleidoscope is on), then applies the global
+// brightness curve to the final colour before writing to the visible canvas.
 const POST_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -78,26 +81,43 @@ const POST_FRAGMENT = /* glsl */ `
   uniform sampler2D tDiffuse;
   uniform float uSegments;
   uniform vec2  uResolution;
+  uniform float uBrightness;    // 0.5–2.0; 1.0 = identity (preserves appearance)
+  uniform float uKaleidoscope;  // 1.0 = fold into wedges, 0.0 = straight pass-through
   varying vec2 vUv;
 
   void main() {
-    float aspect = uResolution.x / max(uResolution.y, 1.0);
-    vec2 p = vUv - 0.5;
-    p.x *= aspect;
+    vec2 uv = vUv;
 
-    float r = length(p);
-    float a = atan(p.y, p.x);
+    // Kaleidoscope fold — applied only when enabled, otherwise straight sampling.
+    if (uKaleidoscope > 0.5) {
+      float aspect = uResolution.x / max(uResolution.y, 1.0);
+      vec2 p = vUv - 0.5;
+      p.x *= aspect;
 
-    float seg = 6.2831853071 / uSegments;
-    a = mod(a, seg);
-    a = abs(a - seg * 0.5);   // mirror inside each wedge for a seamless fold
+      float r = length(p);
+      float a = atan(p.y, p.x);
 
-    vec2 dir = vec2(cos(a), sin(a));
-    vec2 q = dir * r;
-    q.x /= aspect;
-    vec2 uv = q + 0.5;        // MirroredRepeat wrapping keeps samples continuous
+      float seg = 6.2831853071 / uSegments;
+      a = mod(a, seg);
+      a = abs(a - seg * 0.5);   // mirror inside each wedge for a seamless fold
 
-    gl_FragColor = texture2D(tDiffuse, uv);
+      vec2 dir = vec2(cos(a), sin(a));
+      vec2 q = dir * r;
+      q.x /= aspect;
+      uv = q + 0.5;             // MirroredRepeat wrapping keeps samples continuous
+    }
+
+    vec3 c = clamp(texture2D(tDiffuse, uv).rgb, 0.0, 1.0);
+
+    // Global brightness as a "screen against itself" curve:
+    //   out = 1 - (1 - c) ^ brightness
+    // At 100% this is exactly identity (preserves the current look). Higher values
+    // lift shadows and mid-tones the most and taper toward the top, so highlights
+    // brighten without flattening to pure white; pure black (c = 0) always maps to
+    // 0, so black backgrounds stay black rather than washing out to grey.
+    c = 1.0 - pow(1.0 - c, vec3(uBrightness));
+
+    gl_FragColor = vec4(c, 1.0);
   }
 `;
 
@@ -180,10 +200,15 @@ export function Visualizer({
     // ── Shared uniforms (referenced by every template material) ─────────────
     const shared = createSharedUniforms(visualSettingsRef.current, halfW, halfH, halfD);
 
-    // ── Kaleidoscope post-processing pipeline (persistent) ──────────────────
+    // ── Final composite pipeline (persistent: render target + full-screen shader) ──
+    // Every frame renders the scene into this target, then the final shader writes
+    // the result to the canvas (optional kaleidoscope fold + global brightness).
+    // samples: 4 keeps MSAA anti-aliasing through the off-screen pass, so routing
+    // the normal (non-kaleidoscope) path through the target loses no edge quality.
     const renderTarget = new THREE.WebGLRenderTarget(1, 1, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
+      samples:   4,
     });
     renderTarget.texture.wrapS = THREE.MirroredRepeatWrapping;
     renderTarget.texture.wrapT = THREE.MirroredRepeatWrapping;
@@ -194,9 +219,11 @@ export function Visualizer({
     const postGeometry = new THREE.PlaneGeometry(2, 2);
     const postMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        tDiffuse:    { value: renderTarget.texture },
-        uSegments:   { value: kaleidoscopeSegmentsRef.current },
-        uResolution: { value: new THREE.Vector2(1, 1) },
+        tDiffuse:      { value: renderTarget.texture },
+        uSegments:     { value: kaleidoscopeSegmentsRef.current },
+        uResolution:   { value: new THREE.Vector2(1, 1) },
+        uBrightness:   { value: visualSettingsRef.current.brightness / 100 },
+        uKaleidoscope: { value: kaleidoscopeRef.current ? 1 : 0 },
       },
       vertexShader:   POST_VERTEX,
       fragmentShader: POST_FRAGMENT,
@@ -374,19 +401,19 @@ export function Visualizer({
       audioLevels.high = smoothedHigh;
       runtime.onFrame?.(shared.uTime.value, dt, audioLevels);
 
-      // Render straight to the canvas, or through the kaleidoscope fold. Either
-      // way the final image lands on renderer.domElement, so captureStream() keeps
-      // recording exactly what the user sees.
-      if (kaleidoscopeRef.current) {
-        postMaterial.uniforms.uSegments.value = Math.max(2, kaleidoscopeSegmentsRef.current);
-        renderer.setRenderTarget(renderTarget);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(null);
-        renderer.render(postScene, postCamera);
-      } else {
-        renderer.setRenderTarget(null);
-        renderer.render(scene, camera);
-      }
+      // Single composite path for BOTH modes: render the scene into the render
+      // target, then run the final shader (optional kaleidoscope fold + global
+      // brightness) to the visible canvas. The kaleidoscope flag, segment count
+      // and brightness are plain uniform writes — no shader rebuilds and no
+      // per-frame allocation — and the final image always lands on
+      // renderer.domElement, so captureStream() records exactly what the user sees.
+      postMaterial.uniforms.uKaleidoscope.value = kaleidoscopeRef.current ? 1 : 0;
+      postMaterial.uniforms.uSegments.value     = Math.max(2, kaleidoscopeSegmentsRef.current);
+      postMaterial.uniforms.uBrightness.value   = Math.max(0.01, vs.brightness / 100);
+      renderer.setRenderTarget(renderTarget);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      renderer.render(postScene, postCamera);
       // ── Performance sampling → debounced warning (never auto-changes settings) ──
       fpsFrames++;
       const fpsElapsed = now - fpsWindowStart;
