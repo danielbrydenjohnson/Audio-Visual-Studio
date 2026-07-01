@@ -29,16 +29,36 @@ export interface VisualizerProps {
   kaleidoscope: boolean;
   /** Number of mirrored wedges when kaleidoscope is on. */
   kaleidoscopeSegments: number;
+  /** Selected recording width in pixels — the renderer drawing-buffer resolution. */
+  outputWidth: number;
+  /** Selected recording height in pixels — the renderer drawing-buffer resolution. */
+  outputHeight: number;
+  /** Selected capture frame rate (30/60) — the perf-warning threshold scales to it. */
+  frameRate: number;
   /**
    * Called with the live WebGL canvas when the renderer is ready, and with null
    * when it is torn down. Lets the recording workflow capture the exact canvas.
    */
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
+  /**
+   * Called (debounced) when sustained render FPS drops below the target, and
+   * again when it recovers. Lets the UI show a restrained performance warning
+   * without ever auto-changing the user's selected output settings.
+   */
+  onPerformanceWarning?: (isLow: boolean) => void;
 }
 
 // Fast attack / slow release smoothing so reactions snap in and fade out.
 const SMOOTHING_ATTACK  = 0.35;
 const SMOOTHING_RELEASE = 0.055;
+
+// Performance warning thresholds. Sustained render FPS below a fraction of the
+// SELECTED target fps across several one-second windows raises a warning; a
+// couple of good windows clears it. This only reports — it never changes the
+// user's selected output settings.
+const PERF_MIN_RATIO   = 0.75; // warn below 75% of target (45 fps @60, ~22 @30)
+const PERF_LOW_SAMPLES = 3;
+const PERF_OK_SAMPLES  = 2;
 
 function expSmooth(current: number, target: number): number {
   const coeff = target > current ? SMOOTHING_ATTACK : SMOOTHING_RELEASE;
@@ -92,13 +112,15 @@ const POST_FRAGMENT = /* glsl */ `
  */
 export function Visualizer({
   low, mid, high, settings, visualSettings, templateId,
-  kaleidoscope, kaleidoscopeSegments, onCanvasReady,
+  kaleidoscope, kaleidoscopeSegments, outputWidth, outputHeight, frameRate,
+  onCanvasReady, onPerformanceWarning,
 }: VisualizerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
 
   // Read callbacks / props through refs so the single-run effect never restarts.
   const onCanvasReadyRef        = useRef(onCanvasReady);
+  const onPerformanceWarningRef = useRef(onPerformanceWarning);
   const lowRef                  = useRef(low);
   const midRef                  = useRef(mid);
   const highRef                 = useRef(high);
@@ -107,8 +129,12 @@ export function Visualizer({
   const templateIdRef           = useRef(templateId);
   const kaleidoscopeRef         = useRef(kaleidoscope);
   const kaleidoscopeSegmentsRef = useRef(kaleidoscopeSegments);
+  const outputWRef              = useRef(outputWidth);
+  const outputHRef              = useRef(outputHeight);
+  const frameRateRef            = useRef(frameRate);
 
   onCanvasReadyRef.current        = onCanvasReady;
+  onPerformanceWarningRef.current = onPerformanceWarning;
   lowRef.current                  = low;
   midRef.current                  = mid;
   highRef.current                 = high;
@@ -117,6 +143,9 @@ export function Visualizer({
   templateIdRef.current           = templateId;
   kaleidoscopeRef.current         = kaleidoscope;
   kaleidoscopeSegmentsRef.current = kaleidoscopeSegments;
+  outputWRef.current              = outputWidth;
+  outputHRef.current              = outputHeight;
+  frameRateRef.current            = frameRate;
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -131,12 +160,14 @@ export function Visualizer({
       onCanvasReadyRef.current?.(null);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap DPR
+    // pixelRatio is 1 so the drawing buffer equals the EXACT selected output
+    // dimensions — captureStream() records those pixels, and the device pixel
+    // ratio is never multiplied into the recording resolution. The visible canvas
+    // is scaled down purely via CSS (letterbox fit) in applyFraming().
+    renderer.setPixelRatio(1);
     renderer.setClearColor(0x03040a, 1);
     wrapper.appendChild(renderer.domElement);
     renderer.domElement.style.display = "block";
-    renderer.domElement.style.width = "100%";
-    renderer.domElement.style.height = "100%";
     onCanvasReadyRef.current?.(renderer.domElement);
 
     const scene  = new THREE.Scene();
@@ -186,17 +217,38 @@ export function Visualizer({
     // ── Resize / depth framing ──────────────────────────────────────────────
     function applyFraming(): void {
       const rect   = wrapper!.getBoundingClientRect();
-      const width  = Math.max(1, rect.width);
-      const height = Math.max(1, rect.height);
-      const aspect = width / height;
+      const availW = Math.max(1, rect.width);
+      const availH = Math.max(1, rect.height);
 
-      renderer.setSize(width, height, false);
-      camera.aspect = aspect;
+      // Drawing buffer = the EXACT selected output dimensions. captureStream()
+      // records exactly these pixels; the buffer is never multiplied by DPR.
+      const outW = Math.max(1, Math.round(outputWRef.current));
+      const outH = Math.max(1, Math.round(outputHRef.current));
+      const outputAspect = outW / outH;
+
+      renderer.setSize(outW, outH, false); // updateStyle=false — CSS size set below
+
+      // Letterbox-fit the fixed-aspect canvas inside the available preview area
+      // (CSS only — never changes the drawing buffer). The flex wrapper centres it
+      // and the surrounding space stays dark, so the preview shows exactly the
+      // composition that will be recorded. Resizing the window rescales this fit
+      // without changing the selected output dimensions.
+      let cssW: number, cssH: number;
+      if (availW / availH > outputAspect) { cssH = availH; cssW = availH * outputAspect; }
+      else                                { cssW = availW; cssH = availW / outputAspect; }
+      renderer.domElement.style.width  = `${cssW}px`;
+      renderer.domElement.style.height = `${cssH}px`;
+
+      // Camera uses the OUTPUT aspect (not the preview area's aspect).
+      camera.aspect = outputAspect;
 
       const depthScale = visualSettingsRef.current.depth / 100;
       halfD = BASE_HALF_D * depthScale;
       halfH = BASE_HALF_H;
-      halfW = BASE_HALF_H * Math.max(1, aspect);
+      // Volume width tracks the frame aspect so every template fills the frame
+      // consistently across landscape, portrait and square — one responsive
+      // calculation, no per-aspect template code.
+      halfW = BASE_HALF_H * outputAspect;
 
       shared.uVolume.value.set(halfW, halfH, halfD);
 
@@ -208,11 +260,9 @@ export function Visualizer({
       const fovRad = (FOV * Math.PI) / 180;
       shared.uPixelScale.value = renderer.domElement.height / (2 * Math.tan(fovRad / 2));
 
-      // Match the render target to the drawing-buffer size, and give the post
-      // shader the canvas aspect for correct radial folding.
-      const dpr = renderer.getPixelRatio();
-      renderTarget.setSize(Math.max(1, Math.floor(width * dpr)), Math.max(1, Math.floor(height * dpr)));
-      postMaterial.uniforms.uResolution.value.set(width, height);
+      // Kaleidoscope render target + post resolution match the output dimensions.
+      renderTarget.setSize(outW, outH);
+      postMaterial.uniforms.uResolution.value.set(outW, outH);
 
       runtime.onFraming?.(halfW, halfH, halfD);
     }
@@ -241,20 +291,45 @@ export function Visualizer({
     let smoothedHigh = 0;
     let lastPalette: PaletteName = visualSettingsRef.current.palette;
     let lastDepth = visualSettingsRef.current.depth;
+    let lastOutputW = outputWRef.current;
+    let lastOutputH = outputHRef.current;
     let lastTime = performance.now();
     let rafId = 0;
     // Reused each frame to avoid per-frame object allocation.
     const audioLevels: AudioLevels = { low: 0, mid: 0, high: 0 };
 
+    // FPS sampling for the debounced performance warning (no per-frame renders).
+    let fpsWindowStart  = lastTime;
+    let fpsFrames       = 0;
+    let lowSampleStreak = 0;
+    let okSampleStreak  = 0;
+    let perfWarned      = false;
+
     function animate(): void {
       const vs = visualSettingsRef.current;
       const s  = settingsRef.current;
 
-      // Template or density change → rebuild once (dispose old, no new context).
+      let needsRebuild = false;
+
+      // Template or density change → rebuild the root (dispose old, no new context).
       if (templateIdRef.current !== currentTemplate || vs.density !== currentDensity) {
         currentTemplate = templateIdRef.current;
         currentDensity  = vs.density;
-        rebuildTemplate();
+        needsRebuild = true;
+      }
+
+      // Output-dimensions change → re-frame. A resolution-only change (same aspect)
+      // just resizes the buffer + render target; an ASPECT change also rebuilds the
+      // template so it redistributes to the new bounds. Either way the persistent
+      // renderer / context / canvas / render target are reused, never recreated.
+      const ow = outputWRef.current, oh = outputHRef.current;
+      if (ow !== lastOutputW || oh !== lastOutputH) {
+        const oldAspect = lastOutputW / lastOutputH;
+        const newAspect = ow / oh;
+        lastOutputW = ow;
+        lastOutputH = oh;
+        applyFraming();
+        if (Math.abs(newAspect - oldAspect) > 1e-3) needsRebuild = true;
       }
 
       // Depth change → re-frame volume + camera + notify template.
@@ -262,6 +337,8 @@ export function Visualizer({
         lastDepth = vs.depth;
         applyFraming();
       }
+
+      if (needsRebuild) rebuildTemplate();
 
       // Palette change → swap shared colour uniforms (no rebuild).
       if (vs.palette !== lastPalette) {
@@ -310,6 +387,36 @@ export function Visualizer({
         renderer.setRenderTarget(null);
         renderer.render(scene, camera);
       }
+      // ── Performance sampling → debounced warning (never auto-changes settings) ──
+      fpsFrames++;
+      const fpsElapsed = now - fpsWindowStart;
+      if (fpsElapsed >= 1000) {
+        // Skip windows inflated by tab-backgrounding / stalls (would read as 0 fps).
+        if (fpsElapsed < 3000) {
+          // Threshold scales to the SELECTED target fps (30 vs 60) so a smooth
+          // 30 fps session never trips a 60 fps-oriented warning.
+          const targetFps = frameRateRef.current > 0 ? frameRateRef.current : 60;
+          const minFps    = targetFps * PERF_MIN_RATIO;
+          const fps = (fpsFrames * 1000) / fpsElapsed;
+          if (fps < minFps) { lowSampleStreak++; okSampleStreak = 0; }
+          else              { okSampleStreak++;  lowSampleStreak = 0; }
+          if (!perfWarned && lowSampleStreak >= PERF_LOW_SAMPLES) {
+            perfWarned = true;
+            onPerformanceWarningRef.current?.(true);
+          } else if (perfWarned && okSampleStreak >= PERF_OK_SAMPLES) {
+            perfWarned = false;
+            onPerformanceWarningRef.current?.(false);
+          }
+        } else {
+          // Window inflated by tab-backgrounding / a long stall: discard stale
+          // streaks so pre-background samples can't trigger a false warning.
+          lowSampleStreak = 0;
+          okSampleStreak  = 0;
+        }
+        fpsFrames      = 0;
+        fpsWindowStart = now;
+      }
+
       rafId = requestAnimationFrame(animate);
     }
     rafId = requestAnimationFrame(animate);
@@ -333,7 +440,7 @@ export function Visualizer({
   }, []); // runs once — all mutable state lives in the closure / uniforms / refs
 
   return (
-    <div ref={wrapperRef} className="absolute inset-0 overflow-hidden rounded-xl">
+    <div ref={wrapperRef} className="absolute inset-0 overflow-hidden rounded-xl bg-black flex items-center justify-center">
       {webglFailed && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
           <p className="text-xs font-mono text-muted-foreground/70 max-w-xs leading-relaxed">

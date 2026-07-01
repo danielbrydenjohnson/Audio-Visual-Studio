@@ -1,0 +1,216 @@
+Add professional output format controls to Audio Reactive Studio.
+
+The current visual templates, Three.js renderer, Kaleidoscope mode, audio analysis, recording, WebM preview, and download are working.
+
+Do not add more templates and do not redesign the application.
+
+GOAL
+
+Allow the user to choose the aspect ratio, resolution, and frame rate of the final visual recording.
+
+The live preview must accurately show the composition that will be recorded.
+
+OUTPUT SETTINGS
+
+Inside the existing Output section, add:
+
+Aspect Ratio:
+- 16:9 Landscape
+- 9:16 Portrait
+- 1:1 Square
+- Default: 16:9 Landscape
+
+Resolution:
+- 720p
+- 1080p
+- Default: 1080p
+
+Frame Rate:
+- 30 fps
+- 60 fps
+- Default: 60 fps
+
+Use strongly typed settings and sensible central defaults.
+
+OUTPUT DIMENSIONS
+
+Use these exact recording dimensions:
+
+16:9 Landscape:
+- 720p: 1280 × 720
+- 1080p: 1920 × 1080
+
+9:16 Portrait:
+- 720p: 720 × 1280
+- 1080p: 1080 × 1920
+
+1:1 Square:
+- 720p: 720 × 720
+- 1080p: 1080 × 1080
+
+PREVIEW COMPOSITION
+
+The preview area should display the selected aspect ratio using a fitted stage.
+
+Requirements:
+
+- Preserve the selected aspect ratio
+- Fit the stage inside the available preview area
+- Centre it horizontally and vertically
+- Use letterboxing where necessary
+- Do not stretch or distort the visual
+- Do not crop the renderer canvas through CSS
+- Show the actual composition that will be recorded
+- Keep unused surrounding preview space dark
+
+Changing the browser window size must resize the displayed preview without changing the selected output dimensions or aspect ratio.
+
+RENDERER SIZE
+
+The Three.js renderer canvas must use the selected output dimensions as its internal drawing-buffer resolution.
+
+The visible canvas may be displayed smaller through CSS, but its internal width and height must match the selected recording dimensions.
+
+Update:
+
+- WebGLRenderer size
+- Camera aspect ratio
+- Camera projection matrix
+- Kaleidoscope render target dimensions
+- Post-processing output dimensions
+
+Do not create a new renderer or canvas when changing output settings.
+
+Update the existing persistent renderer safely.
+
+CAMERA AND TEMPLATE COMPOSITION
+
+All seven templates must remain correctly framed in:
+
+- 16:9
+- 9:16
+- 1:1
+
+Do not merely stretch the same camera view.
+
+Adjust camera aspect correctly and review template bounds where required.
+
+Requirements:
+
+- Particle Field remains centred
+- Orbital Swarm remains visible
+- Pulse Tunnel stays aligned with the camera
+- Cube Swarm remains within frame
+- Polyhedron Storm remains balanced
+- Laser Lattice remains readable
+- Wireframe Bloom remains centred
+- Kaleidoscope remains centred in every aspect ratio
+
+Do not create separate template implementations for each aspect ratio.
+
+Use responsive camera and framing calculations.
+
+RECORDING
+
+Update the recording workflow so:
+
+- captureStream() uses the selected frame rate
+- The recorded WebM uses the selected output dimensions
+- The downloaded recording matches the live preview composition
+- The audio remains included
+- Kaleidoscope remains included when enabled
+- Recording still starts from the beginning of the song
+- Automatic stopping still works
+- Manual stopping still works
+
+Disable these controls while recording:
+
+- Aspect Ratio
+- Resolution
+- Frame Rate
+- Template
+- Kaleidoscope
+- Kaleidoscope Segments
+
+Do not allow the output format to change halfway through a recording.
+
+PERFORMANCE
+
+1080p at 60 fps may be demanding.
+
+Requirements:
+
+- Keep devicePixelRatio handling separate from the chosen recording resolution
+- Do not multiply the selected output resolution by the full devicePixelRatio
+- Avoid accidentally rendering 3840 × 2160 when 1080p is selected
+- Do not recreate geometries or template data when only the output size changes
+- Reuse the renderer, scene, template, camera, and post-processing resources
+- Resize render targets only when required
+
+If 1080p at 60 fps causes performance problems, show a restrained warning in the interface rather than silently reducing quality.
+
+Do not automatically change the user's selected settings.
+
+FILE NAMING
+
+Include the selected format in the downloaded filename.
+
+Examples:
+
+track-name-visual-1080p-landscape.webm
+track-name-visual-1080p-portrait.webm
+track-name-visual-720p-square.webm
+
+PRESERVE
+
+Do not break:
+
+- Audio upload
+- Playback
+- Pause
+- Seeking
+- File replacement
+- Frequency meters
+- Low, Mid, and High analysis
+- Audio influence controls
+- Visual controls
+- All seven templates
+- Kaleidoscope
+- Recording
+- Recorded video preview
+- WebM download
+- Audio routing
+- Duplicate MediaElementAudioSourceNode protection
+- Template cleanup
+- Renderer cleanup
+
+VALIDATION
+
+Test:
+
+1. Select 16:9 at 1080p and record a short clip.
+2. Confirm the downloaded video is 1920 × 1080.
+3. Select 9:16 at 1080p and record a short clip.
+4. Confirm the downloaded video is 1080 × 1920.
+5. Select 1:1 at 720p and confirm the recording is 720 × 720.
+6. Test 30 fps and 60 fps.
+7. Test Kaleidoscope in all three aspect ratios.
+8. Test at least one point template, one cube template, one line template, and Wireframe Bloom.
+9. Confirm preview framing matches the downloaded video.
+10. Resize the browser and confirm output composition does not change.
+11. Confirm output controls are disabled during recording.
+12. Confirm there is still one renderer canvas.
+13. Confirm there are no duplicate WebGL contexts or animation loops.
+14. Run TypeScript checks.
+15. Fix all runtime errors.
+
+After implementation, explain:
+
+- Which files changed
+- How output dimensions are calculated
+- How the preview stage preserves the selected aspect ratio
+- How the renderer canvas uses the selected recording resolution
+- How camera framing works across aspect ratios
+- How Kaleidoscope render targets are resized
+- How captureStream receives the selected frame rate
+- Any browser or performance limitations discovered

@@ -21,6 +21,10 @@ export interface UseRecorderArgs {
   canvas:           HTMLCanvasElement | null;
   ensureAudioGraph: () => AudioGraphHandle | null;
   fileName:         string | null;
+  /** Frames per second for canvas capture (e.g. 30 or 60). */
+  frameRate:        number;
+  /** Format label baked into the download filename, e.g. "1080p-landscape". */
+  formatLabel:      string;
 }
 
 // Preferred WebM MIME types, most-capable first.
@@ -48,10 +52,11 @@ function captureStreamSupported(canvas: HTMLCanvasElement | null): boolean {
   return !!canvas && typeof canvas.captureStream === "function";
 }
 
-/** Build "<track-name>-visual.webm" from the uploaded file name. */
-function makeDownloadName(fileName: string | null): string {
-  const base = (fileName ?? "recording").replace(/\.[^/.]+$/, "");
-  return `${base || "recording"}-visual.webm`;
+/** Build "<track-name>-visual-<format>.webm" from the file name + output format. */
+function makeDownloadName(fileName: string | null, formatLabel: string): string {
+  const base   = (fileName ?? "recording").replace(/\.[^/.]+$/, "");
+  const suffix = formatLabel ? `-${formatLabel}` : "";
+  return `${base || "recording"}-visual${suffix}.webm`;
 }
 
 /**
@@ -60,7 +65,7 @@ function makeDownloadName(fileName: string | null): string {
  * MediaRecorder. No server, no FFmpeg, no storage.
  */
 export function useRecorder({
-  audioRef, canvas, ensureAudioGraph, fileName,
+  audioRef, canvas, ensureAudioGraph, fileName, frameRate, formatLabel,
 }: UseRecorderArgs): RecorderState {
   const [status,    setStatus]    = useState<RecordingStatus>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -90,9 +95,13 @@ export function useRecorder({
   const canvasRef           = useRef(canvas);
   const fileNameRef         = useRef(fileName);
   const ensureAudioGraphRef = useRef(ensureAudioGraph);
+  const frameRateRef        = useRef(frameRate);
+  const formatLabelRef      = useRef(formatLabel);
   canvasRef.current           = canvas;
   fileNameRef.current         = fileName;
   ensureAudioGraphRef.current = ensureAudioGraph;
+  frameRateRef.current        = frameRate;
+  formatLabelRef.current      = formatLabel;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -197,7 +206,8 @@ export function useRecorder({
 
         audio.currentTime = 0;
 
-        const canvasStream = canvasEl!.captureStream(60);
+        const fps = frameRateRef.current > 0 ? frameRateRef.current : 60;
+        const canvasStream = canvasEl!.captureStream(fps);
         const videoTracks  = canvasStream.getVideoTracks();
         if (videoTracks.length === 0) {
           canvasStream.getTracks().forEach(t => t.stop());
@@ -335,7 +345,7 @@ export function useRecorder({
     if (!url) return;
     const a = document.createElement("a");
     a.href = url;
-    a.download = makeDownloadName(fileNameRef.current);
+    a.download = makeDownloadName(fileNameRef.current, formatLabelRef.current);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

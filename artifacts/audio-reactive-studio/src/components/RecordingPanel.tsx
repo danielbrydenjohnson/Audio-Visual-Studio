@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { RecorderState } from "@/hooks/useRecorder";
 
 function formatElapsed(ms: number): string {
@@ -17,9 +18,11 @@ const STATUS_LABEL: Record<RecorderState["status"], string> = {
 
 interface RecordingPanelProps {
   recorder: RecorderState;
+  /** Output-format controls rendered inside the Output section, above the status. */
+  children?: ReactNode;
 }
 
-export function RecordingPanel({ recorder }: RecordingPanelProps) {
+export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
   const { status, elapsedMs, videoUrl, error, canRecord, start, stop, clear, download } = recorder;
   const isRecording = status === "recording";
   const isStarting = status === "starting";
@@ -31,6 +34,10 @@ export function RecordingPanel({ recorder }: RecordingPanelProps) {
         <div className="w-1 h-3 bg-chart-3/70 rounded-full" />
         <h3 className="text-sm font-medium text-foreground">Output</h3>
       </div>
+
+      {/* Output-format controls (aspect ratio / resolution / frame rate) */}
+      {children}
+      {children ? <div className="border-t border-border/30 -mx-1" /> : null}
 
       {/* Status + timer */}
       <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/30 px-3 py-2">

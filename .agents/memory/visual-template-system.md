@@ -1,6 +1,6 @@
 ---
 name: Audio Reactive Studio — visual template system
-description: How multi-template 3D visuals share one renderer/canvas, the <=16 vertex-attribute limit, the GLSL1 uniform-array gotcha, and the captureStream post-processing rule.
+description: How multi-template 3D visuals share one renderer/canvas, the <=16 vertex-attribute limit, the GLSL1 uniform-array gotcha, the captureStream post-processing rule, and fixed recording resolution (DPR kept out of the buffer) with a letterboxed preview.
 ---
 
 # Visual template system (Audio Reactive Studio)
@@ -45,9 +45,10 @@ MUST target `renderer.domElement`, because `captureStream(60)` records that canv
 if the last render goes to an RT instead, recording captures nothing.
 
 **Why:** the recorder taps the live canvas, not the scene.
-**How to apply:** resize the RT in `applyFraming` (drawing-buffer size = width*dpr);
-set RT texture wrap to MirroredRepeat so radial samples outside [0,1] fold seamlessly;
-dispose the RT/quad geo/material only at unmount, never on toggle.
+**How to apply:** resize the RT in `applyFraming` to the exact output dims (see the
+recording-resolution section — the buffer is NOT multiplied by DPR); set RT texture
+wrap to MirroredRepeat so radial samples outside [0,1] fold seamlessly; dispose the
+RT/quad geo/material only at unmount, never on toggle.
 
 ## GLSL ES 1.0 uniform-array indexing gotcha
 Three.js `ShaderMaterial` defaults to GLSL ES 1.00, which forbids indexing a
@@ -58,3 +59,25 @@ constant-bound loop instead: `for (int i=0;i<MAX;i++){ if (i==idx) att=uAttracto
 **Why:** dynamic indexing compiles fine in WebGL2/GLSL3 but errors under the default
 GLSL1 path; switching the material to `GLSL3` would force rewriting all shaders
 (in/out, texture()). The loop keeps every template on the default path.
+
+## Fixed recording resolution + letterboxed preview
+Output format (aspect ratio / resolution / frame rate) is strongly typed in
+`src/types/output.ts` with a central exact-dimension table; the renderer records those
+EXACT pixels. To guarantee that: `renderer.setPixelRatio(1)` + `setSize(outW, outH,
+false)` so the drawing buffer equals the selected output size, and the RT + post
+`uResolution` also use the output dims. DPR is kept OUT of the buffer on purpose.
+
+**Why:** `captureStream` records the drawing buffer, so any DPR multiply silently
+inflates the recording (accidental 2x/4K, dropped frames). DPR should only ever affect
+the *displayed* size, never the recorded pixels.
+
+**How to apply:** letterbox the PREVIEW with JS-computed contain-fit CSS on the canvas
+element (`style.width/height` in px) inside an `absolute inset-0` flex-centered dark
+wrapper — not CSS `aspect-ratio`, and not a ResizeObserver on the canvas (both risk
+feedback loops). A browser resize then only rescales CSS, never the recorded pixels.
+World volume width tracks the frame via `halfW = BASE_HALF_H * outputAspect`, so all
+templates fill all 3 aspects with ONE responsive calc (no per-aspect code). Rebuild the
+template root only on ASPECT change (templates without `onFraming` won't redistribute
+otherwise); resolution-only changes just resize the buffer/RT. Any perf-warning FPS
+threshold must scale to the SELECTED target fps (e.g. 75% of it), or 30 fps mode
+false-warns against a 60 fps-oriented constant.

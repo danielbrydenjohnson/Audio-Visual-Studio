@@ -18,6 +18,18 @@ import {
   DEFAULT_TEMPLATE_ID,
   getTemplateMeta,
 } from "@/visuals/types";
+import {
+  type OutputSettings,
+  type AspectRatioId,
+  type ResolutionId,
+  type FrameRateId,
+  DEFAULT_OUTPUT_SETTINGS,
+  getOutputDimensions,
+  formatLabelOf,
+  ASPECT_OPTIONS,
+  RESOLUTION_OPTIONS,
+  FRAME_RATE_OPTIONS,
+} from "@/types/output";
 
 // ─── Shared control styles ────────────────────────────────────────────────────
 
@@ -263,6 +275,8 @@ function App() {
   const [templateId,     setTemplateId]     = useState<VisualTemplateId>(DEFAULT_TEMPLATE_ID);
   const [kaleidoscope,         setKaleidoscope]         = useState(false);
   const [kaleidoscopeSegments, setKaleidoscopeSegments] = useState(8);
+  const [output,               setOutput]               = useState<OutputSettings>(DEFAULT_OUTPUT_SETTINGS);
+  const [perfWarning,          setPerfWarning]          = useState(false);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
 
@@ -271,7 +285,14 @@ function App() {
 
   const { bands, ensureAudioGraph } = useFrequencyAnalysis(audioRef, isPlaying);
 
-  const recorder = useRecorder({ audioRef, canvas, ensureAudioGraph, fileName });
+  // Exact recording dimensions + filename label derived from the output format.
+  const outputDims  = getOutputDimensions(output.aspectRatio, output.resolution);
+  const formatLabel = formatLabelOf(output);
+
+  const recorder = useRecorder({
+    audioRef, canvas, ensureAudioGraph, fileName,
+    frameRate: output.frameRate, formatLabel,
+  });
 
   // Revoke object URL on unmount.
   useEffect(() => {
@@ -313,6 +334,12 @@ function App() {
   const hasAudio = audioUrl !== null && fileName !== null;
   const recordingLocked = recorder.status === "recording" || recorder.status === "starting";
 
+  // Output format is locked during recording so it can't change mid-capture.
+  function setOutputSetting<K extends keyof OutputSettings>(key: K, value: OutputSettings[K]) {
+    if (recordingLocked) return;
+    setOutput(prev => ({ ...prev, [key]: value }));
+  }
+
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground flex flex-col overflow-hidden font-sans selection:bg-primary/30">
       <style>{THUMB_STYLE}</style>
@@ -346,7 +373,11 @@ function App() {
               templateId={templateId}
               kaleidoscope={kaleidoscope}
               kaleidoscopeSegments={kaleidoscopeSegments}
+              outputWidth={outputDims.width}
+              outputHeight={outputDims.height}
+              frameRate={output.frameRate}
               onCanvasReady={setCanvas}
+              onPerformanceWarning={setPerfWarning}
             />
             {/* Active template name */}
             <div className="absolute top-3 left-3 z-10 pointer-events-none">
@@ -535,7 +566,50 @@ function App() {
             </div>
 
             {/* ── Output / Recording Section ── */}
-            <RecordingPanel recorder={recorder} />
+            <RecordingPanel recorder={recorder}>
+              <div className="space-y-4">
+                <ControlSelect
+                  label="Aspect Ratio"
+                  value={output.aspectRatio}
+                  disabled={recordingLocked}
+                  options={ASPECT_OPTIONS}
+                  onChange={v => setOutputSetting("aspectRatio", v as AspectRatioId)}
+                />
+                <ControlSelect
+                  label="Resolution"
+                  value={output.resolution}
+                  disabled={recordingLocked}
+                  options={RESOLUTION_OPTIONS}
+                  onChange={v => setOutputSetting("resolution", v as ResolutionId)}
+                />
+                <ControlSelect
+                  label="Frame Rate"
+                  value={String(output.frameRate)}
+                  disabled={recordingLocked}
+                  options={FRAME_RATE_OPTIONS.map(o => ({ value: String(o.value), label: o.label }))}
+                  onChange={v => setOutputSetting("frameRate", Number(v) as FrameRateId)}
+                />
+
+                <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/70">
+                  <span>Recording</span>
+                  <span className="tabular-nums text-foreground/60">
+                    {outputDims.width} × {outputDims.height} · {output.frameRate} fps
+                  </span>
+                </div>
+
+                {recordingLocked && (
+                  <p className="text-[9px] font-mono text-amber-400/80 uppercase tracking-wider">
+                    Output format locked while recording
+                  </p>
+                )}
+                {perfWarning && (
+                  <p className="text-[10px] font-mono leading-relaxed text-amber-400/90 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-2">
+                    Rendering is dropping frames at {outputDims.width} × {outputDims.height} · {output.frameRate} fps.
+                    For smoother output, lower the resolution or frame rate.
+                  </p>
+                )}
+              </div>
+            </RecordingPanel>
 
           </div>
         </aside>
