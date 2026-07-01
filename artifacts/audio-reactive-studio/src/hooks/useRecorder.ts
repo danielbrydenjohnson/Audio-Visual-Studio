@@ -5,6 +5,7 @@ import {
   type AspectRatioId,
   type ResolutionId,
   getOutputDimensions,
+  getRecordingBitrate,
   pickMimeTypeForFormat,
   isFormatSupported,
   containerFromMime,
@@ -23,6 +24,13 @@ export interface RecordedInfo {
   width:       number;
   height:      number;
   frameRate:   number;
+  /** The bitrate passed to the MediaRecorder constructor. */
+  requestedVideoBps: number;
+  /**
+   * The actual bitrate the browser committed to, from recorder.videoBitsPerSecond.
+   * May be 0 if the browser does not report it.
+   */
+  actualVideoBps: number;
 }
 
 export interface RecorderState {
@@ -137,6 +145,7 @@ export function useRecorder({
   const metaRef = useRef<{
     aspectRatio: AspectRatioId; resolution: ResolutionId;
     width: number; height: number; frameRate: number;
+    requestedVideoBps: number; actualVideoBps: number;
   } | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -252,12 +261,16 @@ export function useRecorder({
         // Snapshot the output metadata for this recording. Output is locked while
         // recording, so these values can't change mid-capture.
         const dims = getOutputDimensions(aspectRatioRef.current, resolutionRef.current);
+        const { videoBitsPerSecond: requestedBps, audioBitsPerSecond } =
+          getRecordingBitrate(resolutionRef.current, fps);
         metaRef.current = {
-          aspectRatio: aspectRatioRef.current,
-          resolution:  resolutionRef.current,
-          width:       dims.width,
-          height:      dims.height,
-          frameRate:   fps,
+          aspectRatio:       aspectRatioRef.current,
+          resolution:        resolutionRef.current,
+          width:             dims.width,
+          height:            dims.height,
+          frameRate:         fps,
+          requestedVideoBps: requestedBps,
+          actualVideoBps:    0, // filled in after recorder is constructed
         };
 
         const canvasStream = canvasEl!.captureStream(fps);
@@ -281,11 +294,20 @@ export function useRecorder({
         }
         let recorder: MediaRecorder;
         try {
-          recorder = new MediaRecorder(combined, { mimeType });
+          recorder = new MediaRecorder(combined, {
+            mimeType,
+            videoBitsPerSecond: requestedBps,
+            audioBitsPerSecond,
+          });
         } catch {
           stopCanvasTracks();
           fail("Recording failed to start (recorder could not be created).");
           return;
+        }
+        // Read the actual bitrate the browser committed to (may differ from requested,
+        // or be 0 if the browser doesn't report it).
+        if (metaRef.current) {
+          metaRef.current.actualVideoBps = recorder.videoBitsPerSecond;
         }
 
         chunksRef.current = [];
@@ -335,13 +357,15 @@ export function useRecorder({
           setVideoUrl(url);
           const meta = metaRef.current;
           setRecorded({
-            container:   containerFromMime(realMime),
-            mimeType:    realMime,
-            aspectRatio: meta?.aspectRatio ?? aspectRatioRef.current,
-            resolution:  meta?.resolution ?? resolutionRef.current,
-            width:       meta?.width ?? 0,
-            height:      meta?.height ?? 0,
-            frameRate:   meta?.frameRate ?? frameRateRef.current,
+            container:         containerFromMime(realMime),
+            mimeType:          realMime,
+            aspectRatio:       meta?.aspectRatio ?? aspectRatioRef.current,
+            resolution:        meta?.resolution ?? resolutionRef.current,
+            width:             meta?.width ?? 0,
+            height:            meta?.height ?? 0,
+            frameRate:         meta?.frameRate ?? frameRateRef.current,
+            requestedVideoBps: meta?.requestedVideoBps ?? 0,
+            actualVideoBps:    meta?.actualVideoBps ?? 0,
           });
           setStatus("recorded");
         };

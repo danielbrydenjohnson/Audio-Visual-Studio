@@ -1,0 +1,416 @@
+Improve recording controls and recording quality in Audio Reactive Studio.
+
+There are two related changes required:
+
+1. Visual and Kaleidoscope controls must remain editable during recording.
+2. Add genuine 4K output and improve encoding quality at every resolution.
+
+Do not redesign the application or rebuild the audio graph, renderer, template system, or recording workflow.
+
+PART 1: LIVE CONTROLS DURING RECORDING
+
+The product should allow the user to perform and modify the visual while recording.
+
+MediaRecorder captures the existing persistent renderer canvas through captureStream(), so changes made to the live visual should appear in the recording.
+
+CONTROLS THAT MUST REMAIN ENABLED DURING RECORDING
+
+Keep these controls interactive while recording:
+
+- Template selector
+- Low Influence
+- Mid Influence
+- High Influence
+- Reset Audio
+- Visual Density
+- Motion Speed
+- Element Size
+- Depth
+- Glow
+- Brightness
+- Palette
+- Reset Visuals
+- Kaleidoscope toggle
+- Kaleidoscope Segments
+
+Any future artistic or audio-reactivity controls should also remain enabled unless changing them would alter the recording stream format.
+
+Changes must update the live renderer immediately and appear in the active recording.
+
+CONTROLS THAT MUST REMAIN LOCKED DURING RECORDING
+
+Only lock controls that change the recording container or source:
+
+- Output Format
+- Aspect Ratio
+- Resolution
+- Frame Rate
+- Audio file replacement or Change File
+- Start Recording
+
+Stop Recording must remain enabled.
+
+Do not disable the complete Visualizer, Color & Post, or Controls sidebar.
+
+Check for and remove overly broad locking such as:
+
+- disabled={isRecording} on artistic controls
+- disabled fieldsets around whole sections
+- pointer-events-none on control panels
+- recording overlays blocking controls
+- event handlers returning early during recording
+- frozen copies of visual settings captured at recording start
+
+The recording configuration may freeze output dimensions, format, and frame rate.
+
+It must not freeze artistic settings.
+
+TEMPLATE SWITCHING DURING RECORDING
+
+Allow templates to change while recording.
+
+Requirements:
+
+- Keep the same WebGLRenderer
+- Keep the same visible renderer canvas
+- Keep the same captureStream MediaStream
+- Keep MediaRecorder running
+- Keep the audio playing
+- Dispose of the old template correctly
+- Create the new active template through the existing architecture
+- Avoid duplicate roots, canvases, renderers, contexts, animation loops, or ResizeObservers
+- Minimise any black frame during the transition
+
+The downloaded video must show the live template change.
+
+KALEIDOSCOPE DURING RECORDING
+
+Allow the user to:
+
+- Enable Kaleidoscope
+- Disable Kaleidoscope
+- Change the segment count
+
+Do this by updating the existing post-processing state or shader uniforms.
+
+Do not:
+
+- Restart MediaRecorder
+- Replace the renderer canvas
+- Create another renderer
+- Create another visible canvas
+- Rebuild render targets unnecessarily
+
+The recording must show Kaleidoscope changes at the moment they are made.
+
+VISUAL DENSITY DURING RECORDING
+
+Allow Visual Density to change during recording.
+
+If changing density rebuilds template geometry:
+
+- Keep the renderer canvas unchanged
+- Keep the MediaRecorder stream unchanged
+- Dispose of replaced template resources
+- Avoid duplicate roots and animation loops
+- Minimise visible interruption
+
+Reset Audio and Reset Visuals must also work during recording.
+
+PART 2: ADD 4K OUTPUT
+
+Extend the Resolution control to include:
+
+- 720p
+- 1080p
+- 4K
+
+Keep the existing default unless changing it is necessary.
+
+Use these exact dimensions.
+
+16:9 Landscape:
+
+- 720p: 1280 × 720
+- 1080p: 1920 × 1080
+- 4K: 3840 × 2160
+
+9:16 Portrait:
+
+- 720p: 720 × 1280
+- 1080p: 1080 × 1920
+- 4K: 2160 × 3840
+
+1:1 Square:
+
+- 720p: 720 × 720
+- 1080p: 1080 × 1080
+- 4K: 2160 × 2160
+
+Treat 2160 × 2160 as the square 4K output tier.
+
+RENDERER DRAWING BUFFER
+
+The renderer canvas drawing buffer must use the exact selected output dimensions.
+
+Do not merely enlarge the canvas through CSS.
+
+Do not stretch a lower-resolution drawing buffer to 4K.
+
+When output settings change:
+
+- Resize the existing WebGLRenderer
+- Update the camera aspect ratio
+- Update the camera projection matrix
+- Resize the Kaleidoscope render target
+- Resize any shared post-processing render target
+- Keep the same renderer and visible canvas
+
+Keep CSS display sizing separate from internal recording resolution.
+
+The preview may appear smaller on screen while the internal renderer remains at the selected output dimensions.
+
+Do not multiply 4K dimensions by window.devicePixelRatio.
+
+For fixed export dimensions, avoid accidentally creating an internal buffer larger than:
+
+3840 × 2160
+2160 × 3840
+2160 × 2160
+
+Use an appropriate renderer pixel ratio strategy so the selected output dimensions are the final drawing-buffer dimensions.
+
+RECORDING BITRATE
+
+The existing downloaded 1080p video appears softer than expected.
+
+Do not assume resolution alone determines quality.
+
+Pass an explicit videoBitsPerSecond value when constructing MediaRecorder.
+
+Use these starting targets:
+
+720p at 30 fps:
+- 6,000,000 bits per second
+
+720p at 60 fps:
+- 10,000,000 bits per second
+
+1080p at 30 fps:
+- 12,000,000 bits per second
+
+1080p at 60 fps:
+- 20,000,000 bits per second
+
+4K at 30 fps:
+- 35,000,000 bits per second
+
+4K at 60 fps:
+- 55,000,000 bits per second
+
+Use an audio bitrate of approximately:
+
+- 192,000 bits per second
+
+Create a central typed function that derives the requested video bitrate from:
+
+- Resolution
+- Frame rate
+
+Do not scatter bitrate numbers through components.
+
+After MediaRecorder is created:
+
+- Read recorder.videoBitsPerSecond
+- Store or display the actual bitrate used
+- Do not assume the browser honoured the requested value exactly
+
+RECORDING QUALITY INFORMATION
+
+Show restrained recording metadata in the Output area:
+
+- Format
+- Dimensions
+- Frame rate
+- Requested video bitrate
+- Actual video bitrate, when available
+
+Display bitrate in Mbps for readability.
+
+Do not clutter the interface with excessive technical detail.
+
+MIME TYPE
+
+Preserve the existing native MP4 and WebM detection.
+
+Use MediaRecorder.isTypeSupported() before choosing a MIME type.
+
+Preserve the rule that:
+
+- MP4 output must contain genuine MP4 data
+- WebM output must contain genuine WebM data
+- File extensions must match the actual recorder MIME type
+- A WebM Blob must never simply be renamed to .mp4
+
+4K must work with whichever real recording format is selected and supported.
+
+CAPTURE STREAM
+
+Pass the selected frame rate into:
+
+canvas.captureStream(selectedFrameRate)
+
+Do not create a new captured canvas stream when an artistic control changes.
+
+The recording stream should only be created when starting a recording.
+
+Do not restart it for:
+
+- Template changes
+- Influence changes
+- Palette changes
+- Brightness changes
+- Kaleidoscope changes
+- Segment changes
+- Density changes
+
+PERFORMANCE WARNING
+
+4K, especially 4K at 60 fps, is demanding.
+
+Add a restrained warning when 4K is selected:
+
+"4K recording is demanding and may drop frames on some devices. Test with a short clip first."
+
+For 4K at 60 fps, use stronger wording:
+
+"4K at 60 fps is highly demanding and may not record smoothly on all devices."
+
+Do not silently lower:
+
+- Resolution
+- Frame rate
+- Bitrate
+- Visual Density
+
+Do not automatically change the user's settings.
+
+If recording cannot start, show a clear error.
+
+Do not crash the application.
+
+PREVIEW AND RECORDING MATCH
+
+The recorded result must match the live preview for:
+
+- Template
+- Palette
+- Audio influence
+- Visual settings
+- Brightness
+- Kaleidoscope
+- Kaleidoscope segment changes
+- Template changes during recording
+
+The downloaded file must use the selected dimensions.
+
+Add validation after recording by reading the recorded video metadata when possible.
+
+Confirm the actual width and height shown by the preview video.
+
+FILE NAMING
+
+Extend the filename logic.
+
+Examples:
+
+track-name-visual-4k-landscape.mp4
+track-name-visual-4k-portrait.webm
+track-name-visual-4k-square.mp4
+
+Keep the actual extension tied to the actual MIME type.
+
+PRESERVE
+
+Do not break:
+
+- MP3 and WAV upload
+- Play
+- Pause
+- Seeking
+- Changing files before recording
+- Three-band analysis
+- Frequency meters
+- All seven templates
+- Individual audio reactions
+- Visual controls
+- Kaleidoscope
+- Brightness
+- Aspect ratios
+- Native MP4 support
+- WebM support
+- Manual recording stop
+- Automatic recording stop
+- Video preview
+- Download
+- Audio routing
+- MediaElementAudioSourceNode protection
+- Renderer cleanup
+- Template cleanup
+- Recording cleanup
+
+VALIDATION
+
+Test control behaviour:
+
+1. Start a recording.
+2. Change Low, Mid, and High Influence.
+3. Change Template.
+4. Change Palette.
+5. Change Visual Density.
+6. Change Motion Speed.
+7. Change Element Size.
+8. Change Depth.
+9. Change Glow.
+10. Change Brightness.
+11. Enable Kaleidoscope.
+12. Change the segment count.
+13. Disable Kaleidoscope.
+14. Use Reset Audio and Reset Visuals.
+15. Stop recording.
+16. Confirm every live change appears in the recording.
+
+Test quality:
+
+1. Record 1080p at 30 fps.
+2. Record 1080p at 60 fps.
+3. Confirm both files use explicit bitrate targets.
+4. Confirm the 1080p result is sharper than the previous browser-default recording.
+5. Record 4K landscape at 30 fps.
+6. Confirm the video reports 3840 × 2160.
+7. Record 4K portrait at 30 fps.
+8. Confirm the video reports 2160 × 3840.
+9. Record 4K square at 30 fps.
+10. Confirm the video reports 2160 × 2160.
+11. Test 4K at 60 fps with a short clip.
+12. Report whether frames were dropped or the animation stuttered.
+13. Test one point template, Cube Swarm, Laser Lattice, and Wireframe Bloom.
+14. Test Kaleidoscope in 4K.
+15. Confirm picture and audio remain synchronised.
+16. Confirm output dimensions, MIME type, extension, frame rate, and bitrate metadata.
+17. Confirm there is still one visible renderer canvas.
+18. Confirm visual changes do not restart MediaRecorder.
+19. Run TypeScript checks.
+20. Fix all runtime errors.
+
+After implementation, explain:
+
+- Which controls now remain live during recording
+- Which controls remain locked
+- How template and Kaleidoscope changes preserve the canvas stream
+- Which 4K dimensions were added
+- How exact drawing-buffer dimensions are enforced
+- How recording bitrate is selected
+- The requested and actual bitrate used in each test
+- Whether 4K at 30 fps and 60 fps were stable
+- Any browser-specific limitations encountered

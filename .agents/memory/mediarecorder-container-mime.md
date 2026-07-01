@@ -31,3 +31,25 @@ re-check the resolved MIME immediately before constructing `MediaRecorder` (fail
 empty), and on stop build both the Blob type and the download extension from
 `recorder.mimeType`. Snapshot display metadata (container/resolution/aspect/fps) at
 start since output controls are locked during recording.
+
+# Encoding bitrate
+
+Pass explicit `videoBitsPerSecond` and `audioBitsPerSecond` to the `MediaRecorder`
+constructor; do not rely on the browser default (which produces noticeably soft
+output). After construction, read `recorder.videoBitsPerSecond` for the actual value
+the browser committed to (may differ from the request; may be 0 if not reported).
+Centralize bitrate selection in a typed function, not scattered constants.
+
+# Which controls to lock vs keep live during recording
+
+For canvas `captureStream` recording, visual changes appear in the recording
+automatically — the stream taps the live canvas. Therefore:
+
+- **Must lock:** output format (container), aspect ratio, resolution, frame rate,
+  audio file replacement. These change the recording stream or source.
+- **Keep live:** all artistic controls (template, palette, uniforms, density, speed,
+  brightness, kaleidoscope/segments, influence sliders, reset). Template swaps keep
+  the same renderer/canvas/captureStream; kaleidoscope is a uniform write only.
+
+**Why:** locking artistic controls is overly broad and breaks live-performance
+recording. Only controls that change WHAT is recorded (format/source) need to freeze.

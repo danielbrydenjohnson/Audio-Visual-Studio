@@ -223,18 +223,14 @@ function SectionDivider() {
 
 interface TemplateSelectorProps {
   value:    VisualTemplateId;
-  disabled: boolean;
   onChange: (id: VisualTemplateId) => void;
 }
 
-function TemplateSelector({ value, disabled, onChange }: TemplateSelectorProps) {
+function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
   const active = getTemplateMeta(value);
   return (
     <div className="space-y-2">
-      <div
-        className={`grid grid-cols-3 gap-1.5 ${disabled ? "opacity-50 pointer-events-none" : ""}`}
-        aria-disabled={disabled}
-      >
+      <div className="grid grid-cols-3 gap-1.5">
         {VISUAL_TEMPLATES.map(t => {
           const selected = t.id === value;
           return (
@@ -242,13 +238,12 @@ function TemplateSelector({ value, disabled, onChange }: TemplateSelectorProps) 
               key={t.id}
               type="button"
               onClick={() => onChange(t.id)}
-              disabled={disabled}
               aria-pressed={selected}
               className={`rounded-md border px-2 py-2 text-[10px] font-mono leading-tight text-center transition-colors ${
                 selected
                   ? "border-primary/70 bg-primary/15 text-primary"
                   : "border-border/60 bg-muted/30 text-muted-foreground hover:border-border hover:text-foreground"
-              } disabled:cursor-not-allowed`}
+              }`}
               title={t.description}
             >
               {t.name}
@@ -259,11 +254,6 @@ function TemplateSelector({ value, disabled, onChange }: TemplateSelectorProps) 
       <p className="text-[10px] font-mono leading-relaxed text-muted-foreground/70">
         {active.description}
       </p>
-      {disabled && (
-        <p className="text-[9px] font-mono text-amber-400/80 uppercase tracking-wider">
-          Locked while recording
-        </p>
-      )}
     </div>
   );
 }
@@ -417,6 +407,7 @@ function App() {
                   fileName={fileName}
                   audioRef={audioRef}
                   onChangeFile={handleChangeFile}
+                  changeFileDisabled={recordingLocked}
                   onPlayStateChange={setIsPlaying}
                 />
                 <FrequencyMeters bands={bands} />
@@ -484,7 +475,6 @@ function App() {
                   change halfway through a capture. */}
               <TemplateSelector
                 value={templateId}
-                disabled={recordingLocked}
                 onChange={setTemplateId}
               />
 
@@ -561,14 +551,12 @@ function App() {
                 <ControlToggle
                   label="Kaleidoscope"
                   value={kaleidoscope}
-                  disabled={recordingLocked}
-                  onChange={v => { if (!recordingLocked) setKaleidoscope(v); }}
+                  onChange={setKaleidoscope}
                 />
                 {kaleidoscope && (
                   <ControlSelect
                     label="Kaleidoscope Segments"
                     value={String(kaleidoscopeSegments)}
-                    disabled={recordingLocked}
                     options={[
                       { value: "4",  label: "4 segments" },
                       { value: "6",  label: "6 segments" },
@@ -576,13 +564,8 @@ function App() {
                       { value: "10", label: "10 segments" },
                       { value: "12", label: "12 segments" },
                     ]}
-                    onChange={v => { if (!recordingLocked) setKaleidoscopeSegments(Number(v)); }}
+                    onChange={v => setKaleidoscopeSegments(Number(v))}
                   />
-                )}
-                {recordingLocked && (
-                  <p className="text-[9px] font-mono text-amber-400/80 uppercase tracking-wider">
-                    Kaleidoscope locked while recording
-                  </p>
                 )}
               </div>
             </div>
@@ -650,6 +633,13 @@ function App() {
                   onChange={v => setOutputSetting("frameRate", Number(v) as FrameRateId)}
                 />
 
+                {output.resolution === "4k" && (
+                  <p className="text-[10px] font-mono leading-relaxed text-amber-400/90 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-2">
+                    {output.frameRate === 60
+                      ? "4K at 60 fps is highly demanding and may not record smoothly on all devices."
+                      : "4K recording is demanding and may drop frames on some devices. Test with a short clip first."}
+                  </p>
+                )}
                 <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/70">
                   <span>Recording</span>
                   <span className="tabular-nums text-foreground/60">

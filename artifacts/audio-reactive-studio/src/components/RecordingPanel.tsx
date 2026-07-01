@@ -91,13 +91,25 @@ export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
       {hasRecording && (
         <div className="space-y-3">
           {recorded && (
-            <div className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5">
-              <span className="text-[10px] font-mono font-medium text-foreground/80">
-                {recorded.container.toUpperCase()}
-              </span>
-              <span className="text-[10px] font-mono tabular-nums text-muted-foreground/70">
-                {recorded.width}×{recorded.height} · {recorded.aspectRatio} · {recorded.frameRate} fps
-              </span>
+            <div className="rounded-md border border-border/40 bg-muted/20 px-2.5 py-1.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono font-medium text-foreground/80">
+                  {recorded.container.toUpperCase()}
+                </span>
+                <span className="text-[10px] font-mono tabular-nums text-muted-foreground/70">
+                  {recorded.width}×{recorded.height} · {recorded.frameRate} fps
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60">
+                  {(recorded.requestedVideoBps / 1_000_000).toFixed(1)} Mbps req.
+                </span>
+                {recorded.actualVideoBps > 0 && (
+                  <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60">
+                    {(recorded.actualVideoBps / 1_000_000).toFixed(1)} Mbps actual
+                  </span>
+                )}
+              </div>
             </div>
           )}
           <div className="rounded-md overflow-hidden border border-border/50 bg-black">

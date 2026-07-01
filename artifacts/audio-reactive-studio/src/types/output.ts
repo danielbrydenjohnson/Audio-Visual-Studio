@@ -8,7 +8,7 @@
  */
 
 export type AspectRatioId = "16:9" | "9:16" | "1:1";
-export type ResolutionId  = "720p" | "1080p";
+export type ResolutionId  = "720p" | "1080p" | "4k";
 export type FrameRateId   = 30 | 60;
 /** Recording container. MP4 requires genuine native MediaRecorder support. */
 export type OutputFormatId = "mp4" | "webm";
@@ -38,9 +38,9 @@ export interface OutputDimensions {
  * dimensions of the renderer drawing buffer AND the recorded WebM.
  */
 const DIMENSION_TABLE: Record<AspectRatioId, Record<ResolutionId, OutputDimensions>> = {
-  "16:9": { "720p": { width: 1280, height: 720 },  "1080p": { width: 1920, height: 1080 } },
-  "9:16": { "720p": { width: 720,  height: 1280 }, "1080p": { width: 1080, height: 1920 } },
-  "1:1":  { "720p": { width: 720,  height: 720 },  "1080p": { width: 1080, height: 1080 } },
+  "16:9": { "720p": { width: 1280, height:  720 }, "1080p": { width: 1920, height: 1080 }, "4k": { width: 3840, height: 2160 } },
+  "9:16": { "720p": { width:  720, height: 1280 }, "1080p": { width: 1080, height: 1920 }, "4k": { width: 2160, height: 3840 } },
+  "1:1":  { "720p": { width:  720, height:  720 }, "1080p": { width: 1080, height: 1080 }, "4k": { width: 2160, height: 2160 } },
 };
 
 /** Look up the exact output pixel dimensions for a format. */
@@ -71,6 +71,7 @@ export const ASPECT_OPTIONS: { value: AspectRatioId; label: string }[] = [
 export const RESOLUTION_OPTIONS: { value: ResolutionId; label: string }[] = [
   { value: "720p",  label: "720p" },
   { value: "1080p", label: "1080p" },
+  { value: "4k",    label: "4K" },
 ];
 
 export const FRAME_RATE_OPTIONS: { value: FrameRateId; label: string }[] = [
@@ -82,6 +83,37 @@ export const OUTPUT_FORMAT_OPTIONS: { value: OutputFormatId; label: string }[] =
   { value: "mp4",  label: "MP4" },
   { value: "webm", label: "WebM" },
 ];
+
+// ─── Recording bitrate targets ───────────────────────────────────────────────
+// Central function so no component scatters raw bitrate numbers.
+// videoBitsPerSecond: tiered by resolution and frame rate, matching professional
+// streaming targets (higher fps needs ~65% more bits to preserve motion quality).
+// audioBitsPerSecond: 192 kbps — transparent for music / spoken word in MP4/WebM.
+
+const VIDEO_BPS_30: Record<ResolutionId, number> = {
+  "720p":  6_000_000,
+  "1080p": 12_000_000,
+  "4k":    35_000_000,
+};
+const VIDEO_BPS_60: Record<ResolutionId, number> = {
+  "720p":  10_000_000,
+  "1080p": 20_000_000,
+  "4k":    55_000_000,
+};
+
+/**
+ * Derive the requested video and audio bitrates for MediaRecorder from the
+ * selected resolution and frame rate.  Pass both values to the MediaRecorder
+ * constructor; then read recorder.videoBitsPerSecond for the actual value the
+ * browser committed to.
+ */
+export function getRecordingBitrate(
+  resolution: ResolutionId,
+  frameRate:  number,
+): { videoBitsPerSecond: number; audioBitsPerSecond: number } {
+  const videoBitsPerSecond = frameRate >= 50 ? VIDEO_BPS_60[resolution] : VIDEO_BPS_30[resolution];
+  return { videoBitsPerSecond, audioBitsPerSecond: 192_000 };
+}
 
 // ─── Native recording MIME support ───────────────────────────────────────────
 // A format only records if MediaRecorder.isTypeSupported() confirms a concrete

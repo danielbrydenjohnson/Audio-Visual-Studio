@@ -12,6 +12,11 @@ export interface AudioPlayerProps {
   /** Ref owned by the parent — shared with the frequency-analysis hook. */
   audioRef: RefObject<HTMLAudioElement | null>;
   onChangeFile: () => void;
+  /**
+   * When true, the "Change" button is visually disabled and non-interactive.
+   * Set this during recording so the audio source cannot be replaced mid-capture.
+   */
+  changeFileDisabled?: boolean;
   /** Called whenever play/pause state changes so the parent can react. */
   onPlayStateChange: (playing: boolean) => void;
 }
@@ -28,6 +33,7 @@ export function AudioPlayer({
   fileName,
   audioRef,
   onChangeFile,
+  changeFileDisabled = false,
   onPlayStateChange,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -152,9 +158,11 @@ export function AudioPlayer({
           </span>
         </div>
         <button
-          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0 uppercase tracking-wider font-mono"
+          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0 uppercase tracking-wider font-mono disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-muted-foreground"
           onClick={onChangeFile}
+          disabled={changeFileDisabled}
           type="button"
+          title={changeFileDisabled ? "Cannot change audio file while recording" : undefined}
         >
           Change
         </button>
