@@ -75,7 +75,7 @@ function App() {
           {/* Canvas preview — takes all remaining vertical space */}
           <div className="flex-1 border border-border/40 rounded-xl bg-black shadow-2xl relative overflow-hidden min-h-0">
             {/* Particle animation fills the entire area */}
-            <ParticleCanvas />
+            <ParticleCanvas sub={bands.sub} />
 
             {/* Corner accents sit above the canvas */}
             <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg pointer-events-none z-10" />
