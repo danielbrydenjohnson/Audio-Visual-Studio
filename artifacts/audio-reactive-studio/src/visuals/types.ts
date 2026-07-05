@@ -3,17 +3,17 @@
  *
  * A "template" is a fully distinct 3D audio-reactive look. They all share the
  * same renderer, canvas, camera, animation loop and audio pipeline (see
- * Visualizer.tsx), but each supplies its own scene contents (points, instanced
- * meshes, line segments or wireframe groups), movement and per-band reactions.
+ * Visualizer.tsx), but each supplies its own scene contents (instanced meshes,
+ * line segments, points or wireframe groups), movement and per-band reactions.
  */
 export type VisualTemplateId =
-  | "particle-field"
-  | "orbital-swarm"
-  | "pulse-tunnel"
   | "cube-swarm"
   | "polyhedron-storm"
   | "laser-lattice"
-  | "wireframe-bloom";
+  | "wireframe-bloom"
+  | "fibonacci-spiral"
+  | "sacred-geometry-bloom"
+  | "lissajous-lattice";
 
 export interface VisualTemplateMeta {
   id:          VisualTemplateId;
@@ -23,21 +23,6 @@ export interface VisualTemplateMeta {
 
 /** Central template metadata — the single source of truth for the selector. */
 export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
-  {
-    id:          "particle-field",
-    name:        "Particle Field",
-    description: "Free-floating particles moving through open 3D space.",
-  },
-  {
-    id:          "orbital-swarm",
-    name:        "Orbital Swarm",
-    description: "Independent particle clusters orbiting moving attractors.",
-  },
-  {
-    id:          "pulse-tunnel",
-    name:        "Pulse Tunnel",
-    description: "A deep reactive particle tunnel moving toward the camera.",
-  },
   {
     id:          "cube-swarm",
     name:        "Cube Swarm",
@@ -58,9 +43,24 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
     name:        "Wireframe Bloom",
     description: "Layered wireframe geometry unfolding and pulsing through space.",
   },
+  {
+    id:          "fibonacci-spiral",
+    name:        "Fibonacci Spiral",
+    description: "A deep golden-angle spiral whose arms react band by band.",
+  },
+  {
+    id:          "sacred-geometry-bloom",
+    name:        "Sacred Geometry Bloom",
+    description: "Concentric rings and polygons blooming in layered symmetry.",
+  },
+  {
+    id:          "lissajous-lattice",
+    name:        "Lissajous Lattice",
+    description: "Interwoven harmonic curve strands weaving through depth.",
+  },
 ] as const;
 
-export const DEFAULT_TEMPLATE_ID: VisualTemplateId = "particle-field";
+export const DEFAULT_TEMPLATE_ID: VisualTemplateId = "cube-swarm";
 
 export function getTemplateMeta(id: VisualTemplateId): VisualTemplateMeta {
   return VISUAL_TEMPLATES.find(t => t.id === id) ?? VISUAL_TEMPLATES[0];

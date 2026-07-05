@@ -1,0 +1,420 @@
+Refine the visual template lineup for Audio Reactive Studio.
+
+The current app is working and deployed. It has audio upload, playback, seeking, Low Mid High audio analysis, visual controls, seven visual templates, Kaleidoscope mode, MP4 and WebM recording, 4K output, live visual controls during recording, preview, and download.
+
+Do not rebuild the app from scratch.
+
+GOAL
+
+Shift the product away from generic particle visualiser templates and toward stronger geometric, wireframe, and mathematically inspired templates.
+
+The current weak templates are too generic and should be removed:
+
+- Particle Field
+- Orbital Swarm
+- Pulse Tunnel
+
+These are boring compared with the geometry-led templates and do not hold up visually when paused.
+
+Keep the stronger existing templates:
+
+- Cube Swarm
+- Polyhedron Storm
+- Laser Lattice
+- Wireframe Bloom
+
+Add three new geometry-led templates:
+
+- Fibonacci Spiral
+- Sacred Geometry Bloom
+- Lissajous Lattice
+
+After this task, the app should have exactly seven templates:
+
+1. Cube Swarm
+2. Polyhedron Storm
+3. Laser Lattice
+4. Wireframe Bloom
+5. Fibonacci Spiral
+6. Sacred Geometry Bloom
+7. Lissajous Lattice
+
+Remove all metadata, selector options, imports, factory references, and dead code paths for:
+
+- Particle Field
+- Orbital Swarm
+- Pulse Tunnel
+
+Do not leave removed templates selectable.
+
+Do not leave TypeScript union values for removed templates unless they are still genuinely used.
+
+DEFAULT PALETTE CHANGE
+
+Change the default palette to Monochrome.
+
+The app should open with Monochrome selected by default.
+
+Preserve the existing palette options:
+
+- Monochrome
+- Cyan Violet
+- Ember
+
+Do not remove the other palettes.
+
+Reset Visuals should restore the palette to Monochrome.
+
+TEMPLATE ARCHITECTURE
+
+Preserve the current working template architecture.
+
+There must still be one persistent:
+
+- WebGLRenderer
+- Visible renderer canvas
+- Scene
+- PerspectiveCamera
+- Animation loop
+- ResizeObserver
+
+The active template should still expose a generic THREE.Object3D root and an update method.
+
+Do not create a new renderer, canvas, scene, camera, ResizeObserver, or animation loop for any new template.
+
+When switching templates:
+
+1. Remove the previous template root from the scene.
+2. Dispose previous template-owned geometry, materials, textures, and buffers.
+3. Create the selected template instance.
+4. Add the new template root to the existing scene.
+5. Continue using the existing renderer, canvas, camera, animation loop, and recording stream.
+
+Do not regress the current working recording or Kaleidoscope behaviour.
+
+CORE VISUAL PRINCIPLE
+
+Every template must have a strong visual identity even when the music is paused.
+
+Do not add generic floating dot clouds.
+
+Do not add templates that are only minor rearrangements of particles.
+
+Templates should start from a clear geometric concept.
+
+All templates must preserve the current audio-reactive principle:
+
+- Individual elements react differently.
+- Elements have different Low, Mid, and High affinities.
+- The entire scene should not scale as one object.
+- The entire scene should not rotate as one object.
+- The entire canvas should not flash as the main reaction.
+- At 0% influence, that band has no visual effect.
+- Resting animation continues even when all influence values are 0%.
+
+AUDIO BANDS
+
+Continue using exactly three bands:
+
+Low:
+20 Hz to 250 Hz
+
+Mid:
+250 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+Preserve all existing frequency analysis logic unless a type cleanup is required because removed templates referenced old names.
+
+NEW TEMPLATE 1: FIBONACCI SPIRAL
+
+Create a template based on Fibonacci spiral geometry.
+
+Visual idea:
+
+A deep 3D spiral made from geometric elements arranged using Fibonacci growth and golden angle spacing.
+
+This should not be a flat 2D spiral stuck to the screen.
+
+It should have depth, perspective, and slow organic motion.
+
+Use a mixture of:
+
+- Points
+- Short line segments
+- Small wireframe markers
+- Small geometric nodes if efficient
+
+Choose the most performant implementation that fits the existing architecture.
+
+Requirements:
+
+- Use the golden angle, approximately 137.5 degrees, to place elements.
+- Arrange elements along one or more Fibonacci-style spiral arms.
+- Give the spiral genuine z-depth.
+- Give every element its own phase, speed, size, brightness, Low affinity, Mid affinity, High affinity, and random seed.
+- The spiral should look intentional and recognisable when audio is paused.
+- It should work well with Kaleidoscope.
+
+Low reaction:
+
+- Low-sensitive elements pulse outward individually along their local spiral direction.
+- Some elements briefly increase in size.
+- Avoid expanding the whole spiral as one rigid object.
+
+Mid reaction:
+
+- Mid-sensitive elements create local twisting, phase drift, and wave motion along parts of the spiral.
+- Different sections should bend differently.
+- Do not rotate the whole spiral as a parent group.
+
+High reaction:
+
+- High-sensitive elements sparkle independently.
+- Brightness peaks should happen at selected nodes and line tips.
+- Avoid full-canvas flashing.
+
+Shared controls:
+
+- Visual Density controls number of spiral elements.
+- Motion Speed controls resting drift and phase motion.
+- Element Size controls node or line scale.
+- Depth controls z-distribution and spatial thickness.
+- Glow controls luminous intensity.
+- Palette controls colours.
+
+NEW TEMPLATE 2: SACRED GEOMETRY BLOOM
+
+Create a radial geometric template inspired by sacred geometry, flower-of-life style layouts, interlocking circles, polygons, and layered wireframe rings.
+
+Avoid using copyrighted or overly specific iconography. Build it from general geometric constructions.
+
+Visual idea:
+
+Layered radial geometry made from circles, polygons, rings, and intersecting wireframe structures. It should feel ceremonial, symmetrical, and precise.
+
+Requirements:
+
+- Use line and wireframe geometry rather than simple point sprites.
+- Build several concentric layers.
+- Include repeating circular or polygonal motifs.
+- Add subtle depth by placing layers at slightly different z positions.
+- Each layer or element should have independent phase, speed, brightness, Low affinity, Mid affinity, High affinity, and random seed.
+- The template should look strong when paused.
+- It should become especially interesting under Kaleidoscope.
+
+Low reaction:
+
+- Low-sensitive rings or motifs pulse locally.
+- Some circular forms expand or contract slightly.
+- Avoid scaling all rings together.
+
+Mid reaction:
+
+- Mid-sensitive layers rotate or twist independently at different rates.
+- Add local angular offsets and geometric breathing.
+- Do not rotate the full template root as one object.
+
+High reaction:
+
+- Intersections, vertices, and selected edges brighten independently.
+- Add short glints and flickers to changing subsets.
+- Avoid full-scene strobing.
+
+Shared controls:
+
+- Visual Density controls number of rings, motifs, or line segments.
+- Motion Speed controls layer drift and rotational phase.
+- Element Size controls motif scale and line structure.
+- Depth controls separation between layers.
+- Glow controls line brightness.
+- Palette controls colours.
+
+NEW TEMPLATE 3: LISSAJOUS LATTICE
+
+Create a template based on Lissajous curves and harmonic line motion.
+
+Visual idea:
+
+A 3D lattice of animated harmonic curves, like an oscilloscope pattern expanded into space.
+
+This should feel mathematical, musical, and elegant.
+
+Requirements:
+
+- Use line geometry, not simple particles.
+- Build multiple curve strands or line paths.
+- Each strand should have its own frequency ratio, phase, amplitude, z offset, Low affinity, Mid affinity, High affinity, brightness, and random seed.
+- The curves should move slowly even without audio.
+- It should look like a designed harmonic structure when audio is paused.
+- It should remain readable with Kaleidoscope enabled.
+
+Low reaction:
+
+- Low-sensitive strands increase amplitude or thickness impression through brightness and spacing.
+- Some strands pulse outward from their own curve path.
+- Avoid scaling the entire lattice.
+
+Mid reaction:
+
+- Mid-sensitive strands shift phase and frequency relationships.
+- Add flowing curve deformation and local turbulence.
+- Do not rotate the whole lattice as one group.
+
+High reaction:
+
+- Selected curve segments brighten or sparkle.
+- Add short shimmering highlights along line paths.
+- Avoid flashing all strands at once.
+
+Shared controls:
+
+- Visual Density controls number of curves and segments.
+- Motion Speed controls harmonic animation speed.
+- Element Size controls line intensity or perceived thickness where possible.
+- Depth controls z spread and curve separation.
+- Glow controls luminous intensity.
+- Palette controls colours.
+
+RECORDING AND KALEIDOSCOPE
+
+The new templates must work with:
+
+- Live preview
+- Kaleidoscope off
+- Kaleidoscope on
+- Kaleidoscope segment changes
+- MP4 recording
+- WebM recording
+- 720p
+- 1080p
+- 4K
+- Landscape
+- Portrait
+- Square
+- Live visual control changes during recording
+
+The recording system must continue capturing the existing persistent renderer canvas.
+
+Do not create a second visible canvas.
+
+Do not replace the renderer canvas.
+
+The new templates must be visible in the downloaded recording.
+
+UI REQUIREMENTS
+
+Update the Template selector so it contains only the final seven templates.
+
+Add or update descriptions:
+
+Cube Swarm:
+"Reactive cubes drifting and tumbling through space."
+
+Polyhedron Storm:
+"Angular geometric forms moving through turbulent 3D currents."
+
+Laser Lattice:
+"Reactive line structures cutting through a deep spatial grid."
+
+Wireframe Bloom:
+"Layered wireframe geometry unfolding and pulsing through space."
+
+Fibonacci Spiral:
+"A golden-angle spiral of reactive geometric elements."
+
+Sacred Geometry Bloom:
+"Layered radial geometry built from circles, polygons, and luminous intersections."
+
+Lissajous Lattice:
+"Harmonic curve structures shaped by musical motion."
+
+Make sure the active template label near the preview updates correctly.
+
+Do not redesign the whole interface.
+
+PERFORMANCE
+
+Use efficient Three.js patterns:
+
+- BufferGeometry
+- Typed arrays
+- LineSegments where appropriate
+- InstancedMesh where appropriate
+- ShaderMaterial or shared materials where appropriate
+- Reusable buffers
+- No React state updates inside requestAnimationFrame
+- No new arrays or heavy objects every frame
+- No one Mesh per tiny element unless the element count is deliberately small and justified
+
+Medium density should be smooth on an ordinary laptop.
+
+High density should remain usable.
+
+Do not add post-processing libraries.
+
+Do not add bloom passes.
+
+The existing Kaleidoscope post-processing should remain the only global post-processing mode.
+
+CLEANUP
+
+Every new template must dispose of all owned resources:
+
+- Geometries
+- Materials
+- Textures if any
+- Render targets if any
+- Internal buffers where relevant
+
+Switching repeatedly between all seven templates must not create:
+
+- Duplicate roots
+- Duplicate canvases
+- Duplicate renderers
+- Duplicate animation loops
+- WebGL context errors
+- Stale objects left in the scene
+- Memory leaks
+
+VALIDATION
+
+Test all of the following:
+
+1. Confirm Particle Field, Orbital Swarm, and Pulse Tunnel are gone from the selector.
+2. Confirm the app opens with Monochrome selected.
+3. Switch through all seven remaining templates.
+4. Confirm every template looks visually distinct while audio is paused.
+5. Confirm Fibonacci Spiral is recognisably spiral-based.
+6. Confirm Sacred Geometry Bloom is radial and geometric.
+7. Confirm Lissajous Lattice is made from harmonic curve or line structures.
+8. Play audio and test Low at 200% with Mid and High at 0% on each new template.
+9. Test Mid at 200% with Low and High at 0%.
+10. Test High at 200% with Low and Mid at 0%.
+11. Confirm individual elements react, not the whole scene.
+12. Toggle Kaleidoscope on each new template.
+13. Change Kaleidoscope segments.
+14. Record a short MP4 if supported.
+15. Record a short WebM.
+16. Confirm the downloaded recording contains the active new template.
+17. Test landscape, portrait, and square output.
+18. Test at least one 4K short recording.
+19. Switch templates during recording and confirm the video captures the live change.
+20. Confirm there is still one visible renderer canvas.
+21. Confirm no runtime errors or WebGL errors.
+22. Run TypeScript checks.
+23. Fix all errors.
+
+After implementation, explain:
+
+- Which templates were removed
+- Which templates remain
+- Which files changed
+- How Monochrome became the default palette
+- How Fibonacci Spiral is constructed
+- How Sacred Geometry Bloom is constructed
+- How Lissajous Lattice is constructed
+- How the new templates react to Low, Mid, and High
+- How Kaleidoscope and recording continue to work
+- How resources are cleaned up

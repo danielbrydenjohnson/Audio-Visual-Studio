@@ -521,15 +521,15 @@ function App() {
                   label="Palette"
                   value={visualSettings.palette}
                   options={[
+                    { value: "monochrome", label: "Monochrome" },
                     { value: "cyanViolet", label: "Cyan Violet" },
+                    { value: "ember",      label: "Ember" },
                     { value: "aurora",     label: "Aurora" },
                     { value: "sunset",     label: "Sunset" },
                     { value: "oceanic",    label: "Oceanic" },
                     { value: "plasma",     label: "Plasma" },
                     { value: "neonMint",   label: "Neon Mint" },
                     { value: "rose",       label: "Rose" },
-                    { value: "ember",      label: "Ember" },
-                    { value: "monochrome", label: "Monochrome" },
                   ]}
                   onChange={v => setVisual("palette", v as ParticleVisualSettings["palette"])}
                 />

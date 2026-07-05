@@ -37,6 +37,13 @@ template renders **nothing** (no throw, no obvious error). Pack scalars into vec
 Orbital Swarm (18) and Pulse Tunnel (17) rendered blank until packed down.
 **How to apply:** count attributes whenever adding per-vertex data to a template.
 
+## Fully GPU-computed geometry still needs a `position` attribute
+A template whose vertex shader computes position ENTIRELY from custom attributes
+(e.g. Lissajous Lattice builds each point from a param + strand freq/phase/amp) must
+STILL register a `position` BufferAttribute — set a zero-filled `Float32Array(verts*3)`.
+Three.js uses `position` to infer draw range / vertex count; omit it and the object
+draws nothing (or throws). The shader can ignore its value.
+
 ## Final composite: one RT → one shader for BOTH modes
 Both normal AND kaleidoscope modes render scene → persistent `WebGLRenderTarget` →
 ONE fullscreen shader → canvas. The shader branches the kaleidoscope fold on a

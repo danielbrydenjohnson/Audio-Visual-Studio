@@ -67,15 +67,15 @@ export const DEFAULT_VISUAL_SETTINGS: ParticleVisualSettings = {
   speed:       100,
   elementSize: 100,
   depth:       100,
-  palette:     "cyanViolet",
+  palette:     "monochrome",
   glow:        30,
   brightness:  125,
 };
 
 /**
- * Point-template density preset → particle count.
- * Used by Particle Field / Orbital Swarm / Pulse Tunnel. Mesh/line templates
- * define their own counts (InstancedMesh and LineSegments have different costs).
+ * Point-template density preset → element count.
+ * Used by the points-based Fibonacci Spiral. Mesh/line templates define their
+ * own counts (InstancedMesh and LineSegments have different costs).
  */
 export const DENSITY_COUNTS: Record<DensityLevel, number> = {
   low:    750,
