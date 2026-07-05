@@ -45,3 +45,22 @@ for real users. Verify GL logic by other means.
   persistent streamDest audio track or close the ctx — they must survive for the next
   recording. Detach recorder handlers before a defensive `stop()` in clear() so a late
   `onstop` can't resurrect cleared state.
+
+## Live mic input (getUserMedia) capture lifecycle
+
+- **Rule:** A live-input `start()` that awaits `getUserMedia()` (permission prompt) then
+  `ctx.resume()` MUST hold a monotonic session id captured at entry and re-check it after
+  EVERY await before committing the ctx/source/analyser refs or setting status "active".
+  If a `stop()`/mode-switch/teardown bumps the id mid-await, the resolving flow must stop
+  the just-acquired stream tracks (and close any ctx it created) and return WITHOUT
+  touching state — otherwise switching away during the permission prompt silently
+  reactivates the mic and leaks the capture (browser mic indicator stays on).
+  **Why:** a busy-lock alone is insufficient — `stop()` clears the lock, so the in-flight
+  start still resolves and re-commits. Same pattern as the recorder's run-id fence.
+- **No feedback:** connect the mic `MediaStreamAudioSourceNode` only to the analyser,
+  NEVER to `ctx.destination` (that monitors the mic to the speakers → howl).
+- The same mic `MediaStream` feeds both analysis (`createMediaStreamSource`) and recording
+  (its audio tracks go straight into the combined `MediaStream`) — never call
+  `getUserMedia` twice. On stop, stopping the mic tracks ends both at once; the recorder's
+  canvas-only track stop leaves the mic alone (so recording can stop without ending live
+  input, and vice-versa is wired at the app level).

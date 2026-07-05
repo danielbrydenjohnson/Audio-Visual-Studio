@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioGraphHandle } from "@/hooks/useFrequencyAnalysis";
+import type { LiveRecordingAudio } from "@/hooks/useLiveInputAnalysis";
+import type { AudioSourceMode } from "@/types/audioSource";
 import {
   type OutputFormatId,
   type AspectRatioId,
@@ -54,6 +56,12 @@ export interface UseRecorderArgs {
   audioRef:         RefObject<HTMLAudioElement | null>;
   canvas:           HTMLCanvasElement | null;
   ensureAudioGraph: () => AudioGraphHandle | null;
+  /** Active audio source mode — governs the recording audio path + start flow. */
+  mode:             AudioSourceMode;
+  /** Live-mode audio accessor: the active mic ctx + audio tracks, or null. */
+  getLiveAudio?:    () => LiveRecordingAudio | null;
+  /** True when live input is active (enables recording in live mode). */
+  liveActive?:      boolean;
   fileName:         string | null;
   /** Frames per second for canvas capture (e.g. 30 or 60). */
   frameRate:        number;
@@ -94,7 +102,8 @@ function makeDownloadName(fileName: string | null, formatLabel: string, ext: str
  * MediaRecorder. No server, no FFmpeg, no storage.
  */
 export function useRecorder({
-  audioRef, canvas, ensureAudioGraph, fileName, frameRate, formatLabel,
+  audioRef, canvas, ensureAudioGraph, mode, getLiveAudio, liveActive,
+  fileName, frameRate, formatLabel,
   format, aspectRatio, resolution,
 }: UseRecorderArgs): RecorderState {
   const [status,    setStatus]    = useState<RecordingStatus>("idle");
@@ -131,6 +140,8 @@ export function useRecorder({
   const formatRef           = useRef(format);
   const aspectRatioRef      = useRef(aspectRatio);
   const resolutionRef       = useRef(resolution);
+  const modeRef             = useRef(mode);
+  const getLiveAudioRef     = useRef(getLiveAudio);
   canvasRef.current           = canvas;
   fileNameRef.current         = fileName;
   ensureAudioGraphRef.current = ensureAudioGraph;
@@ -139,6 +150,8 @@ export function useRecorder({
   formatRef.current           = format;
   aspectRatioRef.current      = aspectRatio;
   resolutionRef.current       = resolution;
+  modeRef.current             = mode;
+  getLiveAudioRef.current     = getLiveAudio;
 
   // Real MIME type the recorder produced + a metadata snapshot taken at start.
   const recordedMimeRef = useRef<string>("");
@@ -207,8 +220,9 @@ export function useRecorder({
       setStatus("error");
     };
 
-    const canvasEl = canvasRef.current;
-    const audio    = audioRef.current;
+    const canvasEl   = canvasRef.current;
+    const audio      = audioRef.current;
+    const activeMode = modeRef.current;
 
     if (!mediaRecorderSupported()) {
       fail("Recording isn't supported in this browser (MediaRecorder unavailable).");
@@ -218,23 +232,38 @@ export function useRecorder({
       fail("Canvas capture isn't supported in this browser.");
       return;
     }
-    if (!audio) {
-      fail("Load an audio file before recording.");
-      return;
-    }
     if (!isFormatSupported(formatRef.current)) {
       const alt = formatRef.current === "mp4" ? "WebM" : "MP4";
       fail(`Native ${formatRef.current.toUpperCase()} recording isn’t supported by this browser. Switch the output format to ${alt}.`);
       return;
     }
 
-    const graph = ensureAudioGraphRef.current();
-    if (!graph) {
-      fail("Audio isn't ready to record yet.");
-      return;
+    // Acquire the recording audio (context + tracks) for the active source mode.
+    // Uploaded: the WeakMap-guarded MediaElement graph. Live: the mic stream from
+    // the live-input hook (same stream that feeds analysis — no second capture).
+    let audioCtx:    AudioContext;
+    let audioTracks: MediaStreamTrack[];
+    if (activeMode === "live-input") {
+      const live = getLiveAudioRef.current?.() ?? null;
+      if (!live) {
+        fail("Start Live Input before recording.");
+        return;
+      }
+      audioCtx    = live.ctx;
+      audioTracks = live.audioTracks;
+    } else {
+      if (!audio) {
+        fail("Load an audio file before recording.");
+        return;
+      }
+      const graph = ensureAudioGraphRef.current();
+      if (!graph) {
+        fail("Audio isn't ready to record yet.");
+        return;
+      }
+      audioCtx    = graph.ctx;
+      audioTracks = graph.stream.getAudioTracks();
     }
-
-    const audioTracks = graph.stream.getAudioTracks();
     if (audioTracks.length === 0) {
       fail("No audio recording track is available.");
       return;
@@ -249,12 +278,13 @@ export function useRecorder({
     // Async setup: resume ctx → seek to 0 → capture → combine → recorder → play.
     void (async () => {
       try {
-        if (graph.ctx.state === "suspended") await graph.ctx.resume();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
 
         // Superseded (e.g. cleared) during the await — abort quietly.
         if (!isCurrentRun()) { busyRef.current = false; return; }
 
-        audio.currentTime = 0;
+        // Uploaded track restarts from the beginning; live input has no timeline.
+        if (activeMode === "uploaded-track") audio!.currentTime = 0;
 
         const fps = frameRateRef.current > 0 ? frameRateRef.current : 60;
 
@@ -372,25 +402,29 @@ export function useRecorder({
 
         recorderRef.current = recorder;
 
-        // Auto-stop when the track reaches its end — same path as manual Stop.
-        const onEnded = () => stop();
-        endedHandlerRef.current = onEnded;
-        audio.addEventListener("ended", onEnded);
+        if (activeMode === "uploaded-track") {
+          // Auto-stop when the track reaches its end — same path as manual Stop.
+          const onEnded = () => stop();
+          endedHandlerRef.current = onEnded;
+          audio!.addEventListener("ended", onEnded);
 
-        try {
-          await audio.play();
-        } catch {
-          detachEndedHandler();
-          stopCanvasTracks();
-          recorder.ondataavailable = null;
-          recorder.onstop = null;
-          recorder.onerror = null;
-          recorderRef.current = null;
-          fail("The browser blocked audio playback for the recording.");
-          return;
+          try {
+            await audio!.play();
+          } catch {
+            detachEndedHandler();
+            stopCanvasTracks();
+            recorder.ondataavailable = null;
+            recorder.onstop = null;
+            recorder.onerror = null;
+            recorderRef.current = null;
+            fail("The browser blocked audio playback for the recording.");
+            return;
+          }
+
+          if (!isCurrentRun()) { busyRef.current = false; return; }
         }
-
-        if (!isCurrentRun()) { busyRef.current = false; return; }
+        // Live input has no seek/play and never auto-stops — it runs until the
+        // user presses Stop (or the mic stream ends unexpectedly).
 
         recorder.start();
         startTimer();
@@ -484,7 +518,8 @@ export function useRecorder({
   }, []);
 
   const canRecord =
-    !!canvas && mediaRecorderSupported() && captureStreamSupported(canvas) && fileName !== null;
+    !!canvas && mediaRecorderSupported() && captureStreamSupported(canvas) &&
+    (mode === "live-input" ? !!liveActive : fileName !== null);
   const formatSupported = isFormatSupported(format);
 
   return {

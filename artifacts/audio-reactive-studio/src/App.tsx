@@ -1,11 +1,18 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { AudioUpload } from "@/components/AudioUpload";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { AudioSourceSelector } from "@/components/AudioSourceSelector";
+import { LiveInputPanel } from "@/components/LiveInputPanel";
 import { FrequencyMeters } from "@/components/FrequencyMeters";
 import { Visualizer } from "@/components/Visualizer";
 import { RecordingPanel } from "@/components/RecordingPanel";
 import { useFrequencyAnalysis } from "@/hooks/useFrequencyAnalysis";
+import { useLiveInputAnalysis } from "@/hooks/useLiveInputAnalysis";
 import { useRecorder } from "@/hooks/useRecorder";
+import {
+  type AudioSourceMode,
+  DEFAULT_AUDIO_SOURCE_MODE,
+} from "@/types/audioSource";
 import {
   type VisualizerSettings,
   type ParticleVisualSettings,
@@ -271,13 +278,28 @@ function App() {
   const [kaleidoscopeSegments, setKaleidoscopeSegments] = useState(8);
   const [output,               setOutput]               = useState<OutputSettings>(DEFAULT_OUTPUT_SETTINGS);
   const [perfWarning,          setPerfWarning]          = useState(false);
+  const [audioSourceMode,      setAudioSourceMode]      = useState<AudioSourceMode>(DEFAULT_AUDIO_SOURCE_MODE);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
 
   const audioRef      = useRef<HTMLAudioElement | null>(null);
   const currentUrlRef = useRef<string | null>(null);
+  // Lets the live-input hook stop an in-flight recording if the mic drops out,
+  // without a circular dependency on the recorder (assigned just below).
+  const stopRecordingRef = useRef<() => void>(() => { /* noop until wired */ });
 
-  const { bands, ensureAudioGraph } = useFrequencyAnalysis(audioRef, isPlaying);
+  const isLive = audioSourceMode === "live-input";
+
+  // Uploaded-track analysis is gated off while in live mode so its bands fade to
+  // zero and it never fights the live analyser for the meters/visuals.
+  const uploaded  = useFrequencyAnalysis(audioRef, isPlaying && !isLive);
+  const liveInput = useLiveInputAnalysis({
+    onUnexpectedEnd: () => { stopRecordingRef.current(); },
+  });
+
+  const ensureAudioGraph = uploaded.ensureAudioGraph;
+  // The renderer + meters are source-agnostic: they only ever see Low/Mid/High.
+  const bands = isLive ? liveInput.bands : uploaded.bands;
 
   // Exact recording dimensions + filename label derived from the output format.
   const outputDims  = getOutputDimensions(output.aspectRatio, output.resolution);
@@ -292,12 +314,20 @@ function App() {
     : `${formatDisplayName(output.format)} unavailable in this browser`;
 
   const recorder = useRecorder({
-    audioRef, canvas, ensureAudioGraph, fileName,
+    audioRef, canvas, ensureAudioGraph,
+    mode: audioSourceMode,
+    getLiveAudio: liveInput.getRecordingAudio,
+    liveActive: liveInput.isActive,
+    // Live captures need no uploaded file — the base name becomes "live-input".
+    fileName: isLive ? "live-input" : fileName,
     frameRate: output.frameRate, formatLabel,
     format: output.format,
     aspectRatio: output.aspectRatio,
     resolution: output.resolution,
   });
+
+  // Wire the mic-drop safety stop now that the recorder exists.
+  stopRecordingRef.current = recorder.stop;
 
   // Revoke object URL on unmount.
   useEffect(() => {
@@ -338,6 +368,27 @@ function App() {
 
   const hasAudio = audioUrl !== null && fileName !== null;
   const recordingLocked = recorder.status === "recording" || recorder.status === "starting";
+
+  // Switch between uploaded-track and live-input. Uploaded→live pauses playback
+  // (keeping the file in memory); live→uploaded releases the microphone. Blocked
+  // entirely while recording so the source can't change mid-capture.
+  const handleModeChange = useCallback((next: AudioSourceMode) => {
+    if (recordingLocked || next === audioSourceMode) return;
+    if (next === "live-input") {
+      const a = audioRef.current;
+      if (a && !a.paused) a.pause();
+      setIsPlaying(false);
+    } else {
+      liveInput.stop(); // release the mic + turn off the browser indicator
+    }
+    setAudioSourceMode(next);
+  }, [recordingLocked, audioSourceMode, liveInput]);
+
+  // Stopping live input during a recording cleanly ends the recording first.
+  const handleStopLive = useCallback(() => {
+    if (recorder.status === "recording") recorder.stop();
+    liveInput.stop();
+  }, [recorder, liveInput]);
 
   // Output format is locked during recording so it can't change mid-capture.
   function setOutputSetting<K extends keyof OutputSettings>(key: K, value: OutputSettings[K]) {
@@ -400,7 +451,28 @@ function App() {
           </div>
 
           <div className="rounded-xl border border-border/40 bg-card/60 backdrop-blur-sm px-5 py-4 flex flex-col gap-4 shrink-0">
-            {hasAudio ? (
+            <AudioSourceSelector
+              value={audioSourceMode}
+              disabled={recordingLocked}
+              onChange={handleModeChange}
+            />
+
+            {isLive ? (
+              <>
+                <LiveInputPanel
+                  status={liveInput.status}
+                  error={liveInput.error}
+                  devices={liveInput.devices}
+                  selectedDeviceId={liveInput.selectedDeviceId}
+                  isActive={liveInput.isActive}
+                  recording={recordingLocked}
+                  onSelectDevice={liveInput.setSelectedDeviceId}
+                  onStart={liveInput.start}
+                  onStop={handleStopLive}
+                />
+                <FrequencyMeters bands={bands} />
+              </>
+            ) : hasAudio ? (
               <>
                 <AudioPlayer
                   src={audioUrl}
@@ -571,8 +643,16 @@ function App() {
             </div>
 
             {/* ── Output / Recording Section ── */}
-            <RecordingPanel recorder={recorder}>
+            <RecordingPanel
+              recorder={recorder}
+              notReadyHint={isLive ? "Start Live Input to enable recording" : undefined}
+            >
               <div className="space-y-4">
+                {isLive && (
+                  <p className="text-[10px] font-mono leading-relaxed text-muted-foreground/70 bg-muted/30 border border-border/40 rounded-md px-2.5 py-2">
+                    Live input recordings stop manually — press Stop when you're done.
+                  </p>
+                )}
                 <div className="space-y-2">
                   <ControlSelect
                     label="Output Format"

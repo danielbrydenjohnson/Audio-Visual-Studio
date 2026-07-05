@@ -1,0 +1,423 @@
+Add Live Input mode to Audio Reactive Studio.
+
+The current app works with uploaded MP3/WAV files. It has playback, seeking, Low Mid High audio analysis, visual templates, Kaleidoscope, MP4/WebM recording, 4K output, live visual controls during recording, preview, and download.
+
+Do not rebuild the app from scratch.
+
+GOAL
+
+Add a second audio source mode:
+
+1. Uploaded Track
+2. Live Input
+
+Uploaded Track mode should continue working exactly as it does now.
+
+Live Input mode should use the user’s microphone or audio input device to drive the existing Low, Mid, and High visual reactions in real time.
+
+This turns the app into a live visual instrument as well as a track-based visual generator.
+
+AUDIO SOURCE MODES
+
+Create a strongly typed AudioSourceMode:
+
+- uploaded-track
+- live-input
+
+Add an Audio Source selector near the audio upload/playback area:
+
+- Uploaded Track
+- Live Input
+
+Default:
+
+- Uploaded Track
+
+Switching modes should be explicit and safe.
+
+UPLOADED TRACK MODE
+
+Preserve all current uploaded-track behaviour:
+
+- MP3 upload
+- WAV upload
+- Display file name
+- Play
+- Pause
+- Seek
+- Current time
+- Duration
+- File replacement
+- Start recording from beginning of uploaded track
+- Automatic stop when uploaded track ends
+- Recording includes the uploaded track audio
+- MP4/WebM download works as currently implemented
+
+Do not break the existing MediaElementAudioSourceNode WeakMap protection.
+
+LIVE INPUT MODE
+
+When Live Input is selected, show:
+
+- Start Live Input button
+- Stop Live Input button
+- Live input status
+- Input device selector if browser device labels are available
+- Permission/error message area
+
+Behaviour:
+
+Start Live Input:
+
+- Request microphone/audio input permission using navigator.mediaDevices.getUserMedia({ audio: true })
+- Create a MediaStreamAudioSourceNode from the returned stream
+- Route that stream into the existing analyser path or a shared analyser-compatible path
+- Start updating Low, Mid, and High meters immediately
+- Drive the current visual template in real time
+- Show a clear status such as "Live input active"
+
+Stop Live Input:
+
+- Stop all tracks on the microphone MediaStream
+- Disconnect live audio nodes
+- Set Low, Mid, and High values back toward zero through the existing smoothing behaviour
+- Show status such as "Live input stopped"
+- Do not leave the microphone active
+
+PERMISSION AND DEVICE HANDLING
+
+Handle browser permission states gracefully.
+
+If the user denies microphone access:
+
+- Do not crash
+- Show a clear message
+- Keep the app usable in Uploaded Track mode
+
+If no audio input device is found:
+
+- Show a clear message
+- Do not crash
+
+If device labels are unavailable before permission:
+
+- Show a generic option such as "Default input"
+- After permission is granted, refresh available input devices if possible
+
+If an input device is selected:
+
+- Use its deviceId when starting live input
+- Preserve the selection while the page is open
+
+Do not require device selection for basic operation. Default input should work.
+
+AUDIO ANALYSIS ARCHITECTURE
+
+The existing analyser should continue producing exactly three bands:
+
+Low:
+20 Hz to 250 Hz
+
+Mid:
+250 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+Both Uploaded Track mode and Live Input mode should feed into the same band-value interface used by:
+
+- Frequency meters
+- Visual templates
+- Audio influence controls
+- Recording logic where applicable
+
+Avoid duplicating frequency analysis logic.
+
+If the current useFrequencyAnalysis hook is tightly coupled to the HTML audio element, refactor carefully into shared source-specific hooks or utilities.
+
+Acceptable architecture:
+
+- useUploadedAudioAnalysis for the existing audio element path
+- useLiveInputAnalysis for microphone streams
+- shared utility functions for FFT bin averaging, frequency ranges, smoothing, and band types
+
+Do not casually rewrite the working uploaded-track audio graph.
+
+LIVE INPUT MONITORING
+
+Do not automatically play the microphone input through the speakers.
+
+Avoid feedback loops.
+
+By default, Live Input should analyse the microphone stream without routing it to the audio output.
+
+The visual should react to the input, but the user should not hear their microphone through the app unless a deliberate monitoring control is added later.
+
+Do not add a monitoring toggle in this task.
+
+LIVE INPUT RECORDING MODES
+
+When using Uploaded Track mode, preserve the current recording workflow exactly.
+
+When using Live Input mode, recording should capture:
+
+- The active renderer canvas
+- The live input audio stream
+
+Recording should not require an uploaded file.
+
+In Live Input mode:
+
+- Start Recording should be enabled when live input is active and the renderer canvas is available
+- Start Recording should not seek an audio element to zero
+- Start Recording should not depend on uploaded track duration
+- Stop Recording must be manual
+- There is no automatic stop based on track ending unless a future maximum duration is added
+- The recording timer should show elapsed time as normal
+- Preview and download should work as normal
+
+Add a clear note in Live Input mode:
+
+"Live input recordings stop manually."
+
+If live input is stopped during a recording:
+
+- Either stop the recording automatically with a clear status
+- Or keep recording video and stop audio input cleanly
+
+Choose the simpler safer approach:
+
+- Stopping live input during recording should stop the recording cleanly.
+
+LIVE INPUT RECORDING AUDIO ROUTING
+
+For Live Input recording:
+
+- Use the microphone MediaStream audio track or a MediaStreamDestination connected from the live input graph
+- Combine it with the captured canvas video track
+- Preserve current MediaRecorder format, bitrate, resolution, aspect ratio, frame rate, MP4/WebM detection, and filename logic
+
+Do not route the mic to speakers.
+
+Do not create feedback.
+
+Do not create duplicate live input streams for analysis and recording if one stream can safely serve both purposes.
+
+FILE NAMING
+
+For Uploaded Track mode, preserve the existing filename behaviour based on the uploaded track name.
+
+For Live Input mode, use a sensible filename such as:
+
+live-input-visual-1080p-landscape.mp4
+
+or:
+
+live-input-visual-4k-square.webm
+
+Use the actual MIME type to determine the extension.
+
+CONTROLS DURING RECORDING
+
+Preserve the current rule:
+
+Artistic controls stay live during recording.
+
+These should remain editable during Live Input recording:
+
+- Template selector
+- Low Influence
+- Mid Influence
+- High Influence
+- Reset Audio
+- Visual Density
+- Motion Speed
+- Element Size
+- Depth
+- Glow
+- Brightness
+- Palette
+- Reset Visuals
+- Kaleidoscope toggle
+- Kaleidoscope Segments
+
+These should remain locked during recording:
+
+- Audio Source mode
+- Output Format
+- Aspect Ratio
+- Resolution
+- Frame Rate
+- Uploaded file replacement
+- Input device selection
+- Start Live Input
+- Stop Live Input unless stopping live input also cleanly stops recording
+
+Stop Recording must remain enabled.
+
+MODE SWITCHING
+
+When switching from Uploaded Track to Live Input:
+
+- Pause uploaded audio if playing
+- Keep the uploaded file available in memory if already selected
+- Stop uploaded-track analysis from driving the meters
+- Clear or fade frequency values before live input starts
+- Show Live Input controls
+
+When switching from Live Input to Uploaded Track:
+
+- Stop live input stream and release the microphone
+- Disconnect live input nodes
+- Clear live input errors if appropriate
+- Restore uploaded-track controls
+- If an uploaded file was previously selected, it should still be available
+
+Do not allow Audio Source mode to change during recording.
+
+FREQUENCY METERS
+
+The same Low, Mid, and High meters should work in both modes.
+
+In Live Input mode:
+
+- Meters should respond immediately to voice, claps, music from speakers, or direct audio input
+- Meters should return toward zero when the room/input is quiet
+- If permission is not granted, meters should remain inactive
+
+VISUALS
+
+All current visual systems must work with Live Input:
+
+- All current geometric templates
+- Monochrome default
+- Audio influence controls
+- Visual controls
+- Kaleidoscope
+- 720p
+- 1080p
+- 4K
+- Landscape
+- Portrait
+- Square
+
+The visual renderer should not care whether bands come from an uploaded track or live input. It should only receive Low, Mid, and High values.
+
+SECURITY AND PRIVACY
+
+Make it clear in the UI that live input uses the browser microphone permission.
+
+Do not upload microphone audio to a server.
+
+Do not store live audio.
+
+Do not record anything until the user explicitly presses Start Recording.
+
+When Stop Live Input is pressed or the mode changes away from Live Input, stop microphone tracks so the browser permission indicator turns off.
+
+ERROR HANDLING
+
+Handle:
+
+- navigator.mediaDevices missing
+- getUserMedia unsupported
+- user denies permission
+- no input devices
+- selected input device unavailable
+- AudioContext resume failure
+- MediaStreamAudioSourceNode creation failure
+- recording attempted without active live input
+- live stream ending unexpectedly
+- device unplugged during live input
+
+Show clear user-facing messages.
+
+Do not crash the app.
+
+Do not break Uploaded Track mode when Live Input fails.
+
+CLEANUP
+
+On component unmount:
+
+- Stop live input tracks
+- Disconnect live input source nodes
+- Disconnect analyser nodes owned by live input if separate
+- Clear references to MediaStreams
+- Clear timers
+- Preserve existing recording cleanup
+- Preserve existing renderer cleanup
+
+Repeatedly starting and stopping live input must not create:
+
+- Duplicate input streams
+- Duplicate analysers
+- Duplicate animation loops
+- Leaked microphone tracks
+- Stale MediaStream tracks
+- Console errors
+
+VALIDATION
+
+Test Uploaded Track mode first:
+
+1. Upload MP3.
+2. Play, pause, seek.
+3. Confirm meters respond.
+4. Confirm visuals react.
+5. Record and download.
+6. Confirm audio and video are included.
+
+Test Live Input mode:
+
+1. Switch to Live Input.
+2. Click Start Live Input.
+3. Grant microphone permission.
+4. Speak, clap, or play music near the microphone.
+5. Confirm Low, Mid, and High meters respond.
+6. Confirm visual templates react.
+7. Switch templates while live input is running.
+8. Toggle Kaleidoscope.
+9. Change visual controls.
+10. Stop Live Input.
+11. Confirm browser microphone indicator turns off.
+12. Start Live Input again.
+13. Confirm no duplicate stream or analyser errors.
+
+Test Live Input recording:
+
+1. Start Live Input.
+2. Start Recording.
+3. Speak, clap, or play music near the microphone.
+4. Change visual controls during recording.
+5. Toggle Kaleidoscope during recording.
+6. Stop Recording manually.
+7. Preview the video.
+8. Confirm the video contains the live visual and live input audio.
+9. Download MP4 if supported.
+10. Download WebM.
+11. Confirm filename uses live-input naming.
+12. Confirm resolution, aspect ratio, frame rate, and format settings still apply.
+
+Test failure cases:
+
+1. Deny microphone permission.
+2. Confirm a clear message appears.
+3. Confirm Uploaded Track mode still works.
+4. Try switching modes repeatedly.
+5. Refresh the page and repeat.
+
+Run TypeScript checks and fix all errors.
+
+After implementation, explain:
+
+- Which files changed
+- How Audio Source mode is represented
+- How uploaded track analysis was preserved
+- How live input audio enters the analyser
+- How microphone streams are started and stopped
+- How live input recordings combine canvas and microphone audio
+- How feedback loops are avoided
+- How privacy is handled
+- Which controls remain live during Live Input recording
+- Any browser limitations discovered

@@ -20,9 +20,11 @@ interface RecordingPanelProps {
   recorder: RecorderState;
   /** Output-format controls rendered inside the Output section, above the status. */
   children?: ReactNode;
+  /** Tooltip shown on the Start button when recording isn't yet possible. */
+  notReadyHint?: string;
 }
 
-export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
+export function RecordingPanel({ recorder, children, notReadyHint }: RecordingPanelProps) {
   const {
     status, elapsedMs, videoUrl, error, canRecord, formatSupported, recorded,
     start, stop, clear, download,
@@ -64,7 +66,7 @@ export function RecordingPanel({ recorder, children }: RecordingPanelProps) {
           onClick={start}
           disabled={!canRecord || !formatSupported || isRecording || isStarting}
           className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[11px] font-mono text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/10"
-          title={!canRecord ? "Load an audio file to enable recording" : !formatSupported ? "The selected output format isn't supported by this browser" : "Start recording from the beginning"}
+          title={!canRecord ? (notReadyHint ?? "Load an audio file to enable recording") : !formatSupported ? "The selected output format isn't supported by this browser" : "Start recording"}
         >
           <span className="w-2 h-2 rounded-full bg-red-500" />
           Start

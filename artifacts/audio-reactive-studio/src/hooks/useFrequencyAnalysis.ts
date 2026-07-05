@@ -1,46 +1,15 @@
 import { useState, useRef, useEffect, useCallback, type RefObject } from "react";
+import {
+  type FrequencyBands,
+  ZERO_BANDS,
+  FFT_SIZE,
+  SMOOTHING,
+  computeBands,
+} from "@/lib/audioAnalysis";
 
-/**
- * Three-band frequency model.
- *   Low:  20–200 Hz    — sub-bass, basslines, kick energy
- *   Mid:  250–4000 Hz  — snares, claps, vocals, synth body, melody
- *   High: 4000–16000 Hz — hi-hats, cymbals, brightness, transients
- * Each value is the raw analyser energy, normalised 0–100. These are NEVER
- * modified by the influence sliders — those apply only inside the renderer.
- */
-export interface FrequencyBands {
-  low:  number;
-  mid:  number;
-  high: number;
-}
-
-const ZERO_BANDS: FrequencyBands = { low: 0, mid: 0, high: 0 };
-
-const FFT_SIZE = 2048;
-const SMOOTHING = 0.75;
-
-interface BandRange { fLow: number; fHigh: number }
-
-const BAND_RANGES: Record<keyof FrequencyBands, BandRange> = {
-  low:  { fLow: 20,   fHigh: 200   },
-  mid:  { fLow: 250,  fHigh: 4000  },
-  high: { fLow: 4000, fHigh: 16000 },
-};
-
-/** Average FFT byte values in [fLow, fHigh] Hz, normalised 0–100. */
-function averageBand(
-  data: Uint8Array<ArrayBuffer>,
-  binWidth: number,
-  fLow: number,
-  fHigh: number,
-): number {
-  const startBin = Math.max(0, Math.floor(fLow / binWidth));
-  const endBin   = Math.min(data.length - 1, Math.ceil(fHigh / binWidth));
-  if (startBin > endBin) return 0;
-  let sum = 0;
-  for (let i = startBin; i <= endBin; i++) sum += data[i];
-  return ((sum / (endBin - startBin + 1)) / 255) * 100;
-}
+// Re-exported so existing importers (FrequencyMeters, etc.) keep working while
+// the band model itself lives in the shared analysis utility.
+export type { FrequencyBands } from "@/lib/audioAnalysis";
 
 // ─── Module-level registry ────────────────────────────────────────────────────
 /**
@@ -177,12 +146,7 @@ export function useFrequencyAnalysis(
     function tick(now: number) {
       if (now - lastEmit >= EMIT_INTERVAL_MS) {
         lastEmit = now;
-        analyser.getByteFrequencyData(data);
-        setBands({
-          low:  averageBand(data, binWidth, BAND_RANGES.low.fLow,  BAND_RANGES.low.fHigh),
-          mid:  averageBand(data, binWidth, BAND_RANGES.mid.fLow,  BAND_RANGES.mid.fHigh),
-          high: averageBand(data, binWidth, BAND_RANGES.high.fLow, BAND_RANGES.high.fHigh),
-        });
+        setBands(computeBands(analyser, data, binWidth));
       }
       rafRef.current = requestAnimationFrame(tick);
     }
