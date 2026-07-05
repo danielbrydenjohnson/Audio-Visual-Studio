@@ -138,7 +138,7 @@ export const GLSL_HEADER = /* glsl */ `
 
 /** Shared radial point-sprite fragment shader with a glow-controlled halo. */
 export const FRAGMENT_SHADER = /* glsl */ `
-  precision mediump float;
+  precision highp float;
 
   uniform float uGlow;
 
@@ -157,7 +157,7 @@ export const FRAGMENT_SHADER = /* glsl */ `
 
 /** Flat fragment shader for line segments (no gl_PointCoord). */
 export const LINE_FRAGMENT_SHADER = /* glsl */ `
-  precision mediump float;
+  precision highp float;
 
   varying vec3  vColor;
   varying float vOpacity;

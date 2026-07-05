@@ -44,6 +44,23 @@ STILL register a `position` BufferAttribute — set a zero-filled `Float32Array(
 Three.js uses `position` to infer draw range / vertex count; omit it and the object
 draws nothing (or throws). The shader can ignore its value.
 
+## Fragment-shader float precision MUST be highp (matches vertex default)
+Any shared fragment shader that declares a uniform ALSO declared in the vertex
+stage (via GLSL_HEADER — e.g. `uGlow`) must use `precision highp float;`, not
+`mediump`. Vertex shaders default float precision to **highp** (guaranteed in GLSL
+ES), so a `mediump` fragment declaring the same uniform makes its precision differ
+across stages → the program fails VALIDATE_STATUS with "Precisions of uniform 'X'
+differ between VERTEX and FRAGMENT shaders" → the material renders **nothing**
+(silent blank, only visible in the browser console).
+
+**Why:** this made the point-sprite template (Fibonacci Spiral — the only one using
+the point-sprite FRAGMENT_SHADER) render blank while line templates were unaffected
+(their fragment shader didn't redeclare `uGlow`). highp fragment precision is always
+available under WebGL2 (three ≥ r163), so there's no downside.
+**How to apply:** keep ALL shared fragment shaders (`FRAGMENT_SHADER`,
+`LINE_FRAGMENT_SHADER`) at `highp` for parity; never mix `mediump` fragment with a
+`highp`-default vertex uniform.
+
 ## Final composite: one RT → one shader for BOTH modes
 Both normal AND kaleidoscope modes render scene → persistent `WebGLRenderTarget` →
 ONE fullscreen shader → canvas. The shader branches the kaleidoscope fold on a

@@ -1,0 +1,192 @@
+Debug and fix only the Fibonacci Spiral template in Audio Reactive Studio.
+
+Do not add new features.
+Do not rebuild the whole app.
+Do not change the working templates unless required by a shared interface bug.
+Do not change recording, Kaleidoscope, audio analysis, output settings, MP4/WebM logic, or deployment.
+
+PROBLEM
+
+The Fibonacci Spiral template has been added, but it does not work correctly.
+
+Inspect the actual current code before changing anything.
+
+SCOPE
+
+Focus on:
+
+- Fibonacci Spiral template implementation
+- Template registration and metadata
+- Template factory wiring
+- Template selector integration
+- Shared template interface compatibility
+- Any geometry, material, shader, or update-loop issues specific to Fibonacci Spiral
+
+Do not touch unrelated templates unless the issue is caused by shared template infrastructure.
+
+EXPECTED RESULT
+
+Fibonacci Spiral should render a clearly recognisable golden-angle / Fibonacci-style spiral structure.
+
+It should look intentional even when audio is paused.
+
+It should not appear as:
+
+- A blank screen
+- A random dot cloud
+- A flat broken line
+- A tiny off-screen object
+- A giant object clipped by the camera
+- The same thing as another template
+- A static frozen shape with no resting motion
+
+VISUAL REQUIREMENTS
+
+The template should show:
+
+- A clear spiral composition
+- Golden-angle spacing, approximately 137.5 degrees
+- Real 3D depth
+- Monochrome palette support by default
+- Slow resting movement even when audio is paused
+- Individual elements with different phases, sizes, brightness, and audio affinities
+
+Use efficient Three.js objects:
+
+- BufferGeometry
+- LineSegments and/or Points
+- Typed arrays
+- Shared materials
+- No one Mesh per tiny element unless the count is deliberately low
+
+A good implementation would combine:
+
+- A luminous spiral line structure
+- Small node points along the spiral
+- Slight z-depth variation
+- Subtle independent movement per node
+
+AUDIO REACTIONS
+
+Preserve the three-band system:
+
+Low:
+20 Hz to 250 Hz
+
+Mid:
+250 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+Low reaction:
+- Low-sensitive elements pulse outward along the spiral direction.
+- Some elements briefly increase size or brightness.
+- Do not scale the whole spiral as one object.
+
+Mid reaction:
+- Mid-sensitive elements create local twist, phase drift, and wave motion.
+- Different spiral sections should bend differently.
+- Do not rotate the entire template root as one object.
+
+High reaction:
+- High-sensitive elements sparkle independently.
+- Brightness peaks should happen at selected nodes and line tips.
+- Avoid full-canvas flashing.
+
+DEBUG CHECKS
+
+Check specifically for:
+
+- Fibonacci Spiral not included in the template factory
+- Wrong VisualTemplateId string
+- Metadata id mismatch
+- Selector value not matching factory key
+- Template root not added to the scene
+- Geometry created but positions are all zero
+- Geometry too small, too large, or outside camera view
+- z positions behind the camera
+- Camera clipping issue
+- Material invisible because opacity, blending, depthWrite, or colour is wrong
+- Shader compile errors
+- Buffer attribute size mismatch
+- update method not called
+- settings not reaching the template
+- audio values not reaching the template
+- dispose method removing resources too early
+- stale template instance after switching
+- errors hidden in the console
+
+TEMPLATE ARCHITECTURE
+
+The fixed Fibonacci Spiral must use the existing template architecture:
+
+- One persistent WebGLRenderer
+- One visible renderer canvas
+- One scene
+- One camera
+- One animation loop
+- One ResizeObserver
+- One active template root
+
+Do not create another renderer, canvas, camera, scene, or animation loop.
+
+When switching to Fibonacci Spiral:
+
+1. Dispose the previous template.
+2. Remove the previous root.
+3. Create the Fibonacci Spiral instance.
+4. Add its root to the existing scene.
+5. The animation loop must call its update method every frame.
+
+KALEIDOSCOPE AND RECORDING
+
+Fibonacci Spiral must work with:
+
+- Kaleidoscope off
+- Kaleidoscope on
+- Kaleidoscope segment changes
+- Live preview
+- MP4 recording
+- WebM recording
+- 720p
+- 1080p
+- 4K
+- Landscape
+- Portrait
+- Square
+
+Do not alter the recording system unless Fibonacci is not being captured because of a template-root issue.
+
+VALIDATION
+
+Test:
+
+1. Select Fibonacci Spiral with music paused.
+2. Confirm a clear spiral appears.
+3. Confirm it has depth and resting motion.
+4. Switch away and back to Fibonacci Spiral several times.
+5. Confirm no blank screen.
+6. Confirm no duplicate canvases or WebGL errors.
+7. Play audio.
+8. Set Low Influence to 200% and Mid/High to 0%.
+9. Confirm Low affects individual spiral elements.
+10. Set Mid Influence to 200% and Low/High to 0%.
+11. Confirm Mid creates local twist or wave motion.
+12. Set High Influence to 200% and Low/Mid to 0%.
+13. Confirm High creates individual sparkle or brightness peaks.
+14. Enable Kaleidoscope and confirm the spiral still renders.
+15. Record a short clip.
+16. Confirm the recording captures Fibonacci Spiral.
+17. Run TypeScript checks.
+18. Fix all runtime errors.
+
+After fixing, explain:
+
+- The exact root cause
+- Which files changed
+- How the spiral is constructed
+- How it uses golden-angle spacing
+- How the template is wired into the selector and factory
+- How Low, Mid, and High affect individual spiral elements
+- How Kaleidoscope and recording remain compatible
