@@ -1,0 +1,283 @@
+Add motion controls to the existing Kaleidoscope mode in Audio Reactive Studio.
+
+The current app already has:
+
+- working Kaleidoscope mode
+- Segments control
+- live preview
+- recording
+- MP4/WebM export
+- geometric visual templates
+- live visual controls during recording
+
+Do not rebuild the renderer, template system, recording system, or Kaleidoscope from scratch.
+
+GOAL
+
+Enhance Kaleidoscope so the kaleidoscope effect itself can rotate over time.
+
+The user should be able to:
+
+- turn Kaleidoscope rotation on and off
+- reverse the rotation direction
+- control rotation speed
+
+This should create a more dynamic mirrored effect.
+
+IMPORTANT PRINCIPLE
+
+Rotate the Kaleidoscope effect itself, not the underlying scene.
+
+Do not rotate:
+
+- the active visual template root
+- the scene
+- the camera
+- the renderer canvas with CSS
+
+Instead, apply the motion inside the existing Kaleidoscope shader or final post-processing path by changing the angular mapping used in the kaleidoscope coordinate transform.
+
+Kaleidoscope should remain a post-process effect applied to the final rendered image.
+
+NEW CONTROLS
+
+Inside the existing Color & Post section, under the existing Kaleidoscope controls, add:
+
+1. Kaleidoscope Rotate
+- A toggle or button
+- On means the kaleidoscope effect rotates continuously
+- Off means the kaleidoscope effect stays still
+- Default: Off
+
+2. Rotation Direction
+- Two options:
+  - Clockwise
+  - Counterclockwise
+- Default: Clockwise
+
+3. Rotation Speed
+- Slider
+- Range: 0% to 200%
+- Default: 40%
+- Show the current percentage beside the label
+
+The controls should only be visible or enabled when Kaleidoscope itself is enabled.
+
+When Kaleidoscope is off, do not show unnecessary extra controls, or show them disabled in a clean restrained way.
+
+SETTINGS AND TYPES
+
+Add these settings into the strongly typed visual settings model:
+
+- kaleidoscopeRotate: boolean
+- kaleidoscopeDirection: "clockwise" | "counterclockwise"
+- kaleidoscopeSpeed: number
+
+Add sensible defaults.
+
+Reset Visuals should restore:
+
+- palette to Monochrome
+- kaleidoscope off
+- default segment count
+- kaleidoscope rotation off
+- default direction
+- default speed
+
+Kaleidoscope settings should remain part of the visual state, not a separate hidden internal state.
+
+ROTATION BEHAVIOUR
+
+When Kaleidoscope is enabled and Rotate is on:
+
+- The mirrored angular mapping should rotate continuously over time.
+- Clockwise and counterclockwise should reverse the sign of the angular offset.
+- Speed should scale the rotation rate.
+
+Requirements:
+
+- At 0%, rotation should effectively stop even if Rotate is on.
+- At 100%, rotation should be clearly visible but controlled.
+- At 200%, rotation should be fast but still visually usable.
+- Rotation should be smooth.
+- Rotation should not jitter.
+- Rotation should be frame-rate independent.
+
+Use elapsed time or delta time in the animation loop.
+
+A good implementation would update a uniform like:
+
+- kaleidoscopeAngleOffset
+
+or similar.
+
+The final angular value should be derived from:
+
+- accumulated time
+- direction sign
+- speed multiplier
+
+PAUSE / RESUME BEHAVIOUR
+
+When Rotate is turned off:
+
+- Freeze the Kaleidoscope at its current angle
+- Do not snap back to zero immediately
+- The current rotated view should remain visible
+
+When Rotate is turned back on:
+
+- Continue rotating smoothly from the current angle
+- Do not reset unless explicitly required by Reset Visuals
+
+This matters because users may want to stop at a pleasing visual position.
+
+DIRECTION CHANGES
+
+When switching from clockwise to counterclockwise or back:
+
+- Reverse direction smoothly
+- Keep the current angle
+- Do not jump or reset
+
+SHADER / POST-PROCESS REQUIREMENTS
+
+Preserve the current Kaleidoscope architecture:
+
+- render active scene into render target
+- run final full-screen shader
+- perform polar-coordinate kaleidoscope mapping
+- output to the existing visible renderer canvas
+
+Extend this path to support angular offset in the kaleidoscope transform.
+
+Do not create:
+
+- another renderer
+- another visible canvas
+- another animation loop
+- duplicated scenes or cameras
+- CSS transforms for rotation
+
+The final output must still be rendered into the same visible canvas used by captureStream().
+
+RECORDING
+
+The rotating Kaleidoscope effect must appear in:
+
+- live preview
+- recording preview
+- downloaded MP4
+- downloaded WebM
+
+The recording system should not need special changes beyond reading the same persistent canvas.
+
+Do not restart MediaRecorder when:
+
+- Rotate is toggled
+- Direction changes
+- Speed changes
+
+These are live artistic controls and must remain editable during recording.
+
+LIVE CONTROLS DURING RECORDING
+
+Preserve the current rule that artistic controls remain live during recording.
+
+These Kaleidoscope controls must remain editable during recording:
+
+- Kaleidoscope toggle
+- Kaleidoscope Segments
+- Kaleidoscope Rotate
+- Rotation Direction
+- Rotation Speed
+
+Changes must immediately affect the preview and appear in the active recording.
+
+UI DETAILS
+
+Keep the UI clean and compact.
+
+Suggested layout:
+
+- Kaleidoscope toggle
+- Segments select
+- Rotate toggle
+- Direction segmented control or select
+- Speed slider with percentage readout
+
+Do not redesign the whole sidebar.
+
+PERFORMANCE
+
+- Do not recreate the shader when the controls change
+- Update uniforms or renderer state efficiently
+- Do not create React state updates inside requestAnimationFrame
+- Reuse the existing render target and final shader resources
+- Preserve performance at 720p, 1080p, and 4K
+- Preserve compatibility with all current templates
+
+PRESERVE
+
+Do not break:
+
+- uploaded track mode
+- live input mode
+- playback
+- seeking
+- frequency meters
+- Low Mid High audio analysis
+- geometric templates
+- monochrome default palette
+- visual controls
+- Brightness
+- Glow
+- recording
+- MP4/WebM export
+- aspect ratios
+- resolution options
+- frame-rate options
+- live controls during recording
+- existing Kaleidoscope segments
+- renderer cleanup
+- template cleanup
+- recording cleanup
+
+VALIDATION
+
+Test all of the following:
+
+1. Enable Kaleidoscope.
+2. Change segment count.
+3. Turn Rotate on.
+4. Confirm the kaleidoscope pattern rotates smoothly.
+5. Turn Rotate off.
+6. Confirm the pattern freezes at the current angle.
+7. Turn Rotate on again.
+8. Confirm it resumes from the same angle.
+9. Switch direction to counterclockwise.
+10. Confirm rotation reverses smoothly without jumping.
+11. Test speed at 0%, 40%, 100%, and 200%.
+12. Confirm 0% effectively stops motion.
+13. Confirm 200% is fast but still usable.
+14. Test with multiple templates.
+15. Record a short clip with rotation on.
+16. Change speed and direction during recording.
+17. Confirm the downloaded video contains those live changes.
+18. Test MP4 if supported and WebM.
+19. Test 720p, 1080p, and at least one short 4K recording.
+20. Confirm there is still one visible renderer canvas.
+21. Confirm no duplicate renderers, animation loops, or post-process resources.
+22. Run TypeScript checks.
+23. Fix all runtime errors.
+
+After implementation, explain:
+
+- which files changed
+- which new kaleidoscope settings were added
+- how the angle offset is calculated
+- how direction is applied
+- how speed is applied
+- how pause/resume keeps the current angle
+- how the shader was updated
+- how recording captures the rotating kaleidoscope effect

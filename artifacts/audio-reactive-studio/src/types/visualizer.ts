@@ -32,6 +32,9 @@ export type PaletteName =
   | "neonMint"
   | "rose";
 
+/** Kaleidoscope rotation direction. */
+export type KaleidoscopeDirection = "clockwise" | "counterclockwise";
+
 /**
  * Visual styling settings shared by every template.
  * Separate from audio influence — resetting one must not affect the other.
@@ -60,6 +63,18 @@ export interface ParticleVisualSettings {
    * from Glow — Glow shapes luminous elements, Brightness scales the final image.
    */
   brightness:  number;
+
+  // ── Kaleidoscope post-processing ───────────────────────────────────────────
+  /** When true, folds the rendered scene into N mirrored radial wedges. */
+  kaleidoscope:          boolean;
+  /** Number of mirrored wedges (4 / 6 / 8 / 10 / 12). */
+  kaleidoscopeSegments:  number;
+  /** When true the kaleidoscope angular mapping rotates continuously over time. */
+  kaleidoscopeRotate:    boolean;
+  /** Which way the kaleidoscope rotates when rotation is on. */
+  kaleidoscopeDirection: KaleidoscopeDirection;
+  /** Rotation speed, 0–200 %. 100 % is clearly visible but controlled. */
+  kaleidoscopeSpeed:     number;
 }
 
 export const DEFAULT_VISUAL_SETTINGS: ParticleVisualSettings = {
@@ -70,6 +85,12 @@ export const DEFAULT_VISUAL_SETTINGS: ParticleVisualSettings = {
   palette:     "monochrome",
   glow:        30,
   brightness:  125,
+
+  kaleidoscope:          false,
+  kaleidoscopeSegments:  8,
+  kaleidoscopeRotate:    false,
+  kaleidoscopeDirection: "clockwise",
+  kaleidoscopeSpeed:     40,
 };
 
 /**

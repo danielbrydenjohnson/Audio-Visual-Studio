@@ -21,14 +21,14 @@ export interface VisualizerProps {
   high: number;
   /** Per-band influence percentages (0–200). */
   settings: VisualizerSettings;
-  /** Visual styling settings (density, speed, element size, depth, glow, palette). */
+  /**
+   * Visual styling settings (density, speed, element size, depth, glow, palette,
+   * kaleidoscope on/off, segments, rotation). All kaleidoscope settings live here
+   * so Reset Visuals restores the full set in one step.
+   */
   visualSettings: ParticleVisualSettings;
   /** Which visual template to render. Changing this hot-swaps the geometry. */
   templateId: VisualTemplateId;
-  /** Kaleidoscope post-processing on/off (mirrors the scene into radial wedges). */
-  kaleidoscope: boolean;
-  /** Number of mirrored wedges when kaleidoscope is on. */
-  kaleidoscopeSegments: number;
   /** Selected recording width in pixels — the renderer drawing-buffer resolution. */
   outputWidth: number;
   /** Selected recording height in pixels — the renderer drawing-buffer resolution. */
@@ -81,8 +81,11 @@ const POST_FRAGMENT = /* glsl */ `
   uniform sampler2D tDiffuse;
   uniform float uSegments;
   uniform vec2  uResolution;
-  uniform float uBrightness;    // 0.5–2.0; 1.0 = identity (preserves appearance)
-  uniform float uKaleidoscope;  // 1.0 = fold into wedges, 0.0 = straight pass-through
+  uniform float uBrightness;     // 0.5–2.0; 1.0 = identity (preserves appearance)
+  uniform float uKaleidoscope;   // 1.0 = fold into wedges, 0.0 = straight pass-through
+  uniform float uAngleOffset;    // accumulated rotation angle (radians); shifts the
+                                 // angular reference frame before the wedge fold so
+                                 // the whole kaleidoscope pattern rotates over time
   varying vec2 vUv;
 
   void main() {
@@ -97,14 +100,17 @@ const POST_FRAGMENT = /* glsl */ `
       float r = length(p);
       float a = atan(p.y, p.x);
 
+      // Apply the accumulated angle offset BEFORE the wedge fold.
+      // This shifts the whole angular reference frame, rotating the kaleidoscope
+      // effect itself without touching the scene, camera, or canvas transform.
       float seg = 6.2831853071 / uSegments;
-      a = mod(a, seg);
-      a = abs(a - seg * 0.5);   // mirror inside each wedge for a seamless fold
+      a = mod(a + uAngleOffset, seg);
+      a = abs(a - seg * 0.5);    // mirror inside each wedge for a seamless fold
 
       vec2 dir = vec2(cos(a), sin(a));
       vec2 q = dir * r;
       q.x /= aspect;
-      uv = q + 0.5;             // MirroredRepeat wrapping keeps samples continuous
+      uv = q + 0.5;              // MirroredRepeat wrapping keeps samples continuous
     }
 
     vec3 c = clamp(texture2D(tDiffuse, uv).rgb, 0.0, 1.0);
@@ -132,7 +138,7 @@ const POST_FRAGMENT = /* glsl */ `
  */
 export function Visualizer({
   low, mid, high, settings, visualSettings, templateId,
-  kaleidoscope, kaleidoscopeSegments, outputWidth, outputHeight, frameRate,
+  outputWidth, outputHeight, frameRate,
   onCanvasReady, onPerformanceWarning,
 }: VisualizerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -147,8 +153,6 @@ export function Visualizer({
   const settingsRef             = useRef(settings);
   const visualSettingsRef       = useRef(visualSettings);
   const templateIdRef           = useRef(templateId);
-  const kaleidoscopeRef         = useRef(kaleidoscope);
-  const kaleidoscopeSegmentsRef = useRef(kaleidoscopeSegments);
   const outputWRef              = useRef(outputWidth);
   const outputHRef              = useRef(outputHeight);
   const frameRateRef            = useRef(frameRate);
@@ -161,8 +165,6 @@ export function Visualizer({
   settingsRef.current             = settings;
   visualSettingsRef.current       = visualSettings;
   templateIdRef.current           = templateId;
-  kaleidoscopeRef.current         = kaleidoscope;
-  kaleidoscopeSegmentsRef.current = kaleidoscopeSegments;
   outputWRef.current              = outputWidth;
   outputHRef.current              = outputHeight;
   frameRateRef.current            = frameRate;
@@ -220,10 +222,11 @@ export function Visualizer({
     const postMaterial = new THREE.ShaderMaterial({
       uniforms: {
         tDiffuse:      { value: renderTarget.texture },
-        uSegments:     { value: kaleidoscopeSegmentsRef.current },
+        uSegments:     { value: visualSettingsRef.current.kaleidoscopeSegments },
         uResolution:   { value: new THREE.Vector2(1, 1) },
         uBrightness:   { value: visualSettingsRef.current.brightness / 100 },
-        uKaleidoscope: { value: kaleidoscopeRef.current ? 1 : 0 },
+        uKaleidoscope: { value: visualSettingsRef.current.kaleidoscope ? 1 : 0 },
+        uAngleOffset:  { value: 0 },
       },
       vertexShader:   POST_VERTEX,
       fragmentShader: POST_FRAGMENT,
@@ -322,6 +325,13 @@ export function Visualizer({
     let lastOutputH = outputHRef.current;
     let lastTime = performance.now();
     let rafId = 0;
+    // Kaleidoscope rotation — accumulated angle (radians). Updated each frame
+    // via delta-time so rotation is frame-rate independent. Never reset by
+    // direction/speed changes; kept in a closure var so React state is never
+    // written from inside requestAnimationFrame.
+    let kAngle = 0;
+    // Radians/second at 100 % speed — visibly clear but not overwhelming.
+    const K_BASE_RATE = 0.5;
     // Reused each frame to avoid per-frame object allocation.
     const audioLevels: AudioLevels = { low: 0, mid: 0, high: 0 };
 
@@ -403,13 +413,27 @@ export function Visualizer({
 
       // Single composite path for BOTH modes: render the scene into the render
       // target, then run the final shader (optional kaleidoscope fold + global
-      // brightness) to the visible canvas. The kaleidoscope flag, segment count
-      // and brightness are plain uniform writes — no shader rebuilds and no
-      // per-frame allocation — and the final image always lands on
-      // renderer.domElement, so captureStream() records exactly what the user sees.
-      postMaterial.uniforms.uKaleidoscope.value = kaleidoscopeRef.current ? 1 : 0;
-      postMaterial.uniforms.uSegments.value     = Math.max(2, kaleidoscopeSegmentsRef.current);
+      // brightness) to the visible canvas. All uniform writes are plain value
+      // assignments — no shader rebuilds, no per-frame allocation — and the final
+      // image always lands on renderer.domElement so captureStream() records
+      // exactly what the user sees, including the rotating kaleidoscope effect.
+      postMaterial.uniforms.uKaleidoscope.value = vs.kaleidoscope ? 1 : 0;
+      postMaterial.uniforms.uSegments.value     = Math.max(2, vs.kaleidoscopeSegments);
       postMaterial.uniforms.uBrightness.value   = Math.max(0.01, vs.brightness / 100);
+
+      // Advance the kaleidoscope angle offset. The angle accumulates in a closure
+      // variable (never React state) so writes never re-render the component.
+      // When rotate is off we simply skip the add — the angle freezes at its
+      // current value, keeping the current rotated view instead of snapping to 0.
+      if (vs.kaleidoscope && vs.kaleidoscopeRotate) {
+        const sign = vs.kaleidoscopeDirection === "clockwise" ? 1 : -1;
+        kAngle += sign * (vs.kaleidoscopeSpeed / 100) * K_BASE_RATE * dt;
+        // Keep the angle in [-2π, 2π] so floating-point precision never degrades
+        // in long sessions. The fold is periodic so the visual is identical.
+        if (kAngle >  Math.PI * 2) kAngle -= Math.PI * 2;
+        if (kAngle < -Math.PI * 2) kAngle += Math.PI * 2;
+      }
+      postMaterial.uniforms.uAngleOffset.value = kAngle;
       renderer.setRenderTarget(renderTarget);
       renderer.render(scene, camera);
       renderer.setRenderTarget(null);

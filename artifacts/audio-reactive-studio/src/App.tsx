@@ -16,6 +16,7 @@ import {
 import {
   type VisualizerSettings,
   type ParticleVisualSettings,
+  type KaleidoscopeDirection,
   DEFAULT_SETTINGS,
   DEFAULT_VISUAL_SETTINGS,
 } from "@/types/visualizer";
@@ -274,8 +275,6 @@ function App() {
   const [settings,       setSettings]       = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [visualSettings, setVisualSettings] = useState<ParticleVisualSettings>(DEFAULT_VISUAL_SETTINGS);
   const [templateId,     setTemplateId]     = useState<VisualTemplateId>(DEFAULT_TEMPLATE_ID);
-  const [kaleidoscope,         setKaleidoscope]         = useState(false);
-  const [kaleidoscopeSegments, setKaleidoscopeSegments] = useState(8);
   const [output,               setOutput]               = useState<OutputSettings>(DEFAULT_OUTPUT_SETTINGS);
   const [perfWarning,          setPerfWarning]          = useState(false);
   const [audioSourceMode,      setAudioSourceMode]      = useState<AudioSourceMode>(DEFAULT_AUDIO_SOURCE_MODE);
@@ -427,8 +426,6 @@ function App() {
               settings={settings}
               visualSettings={visualSettings}
               templateId={templateId}
-              kaleidoscope={kaleidoscope}
-              kaleidoscopeSegments={kaleidoscopeSegments}
               outputWidth={outputDims.width}
               outputHeight={outputDims.height}
               frameRate={output.frameRate}
@@ -622,22 +619,60 @@ function App() {
 
                 <ControlToggle
                   label="Kaleidoscope"
-                  value={kaleidoscope}
-                  onChange={setKaleidoscope}
+                  value={visualSettings.kaleidoscope}
+                  onChange={v => setVisual("kaleidoscope", v)}
                 />
-                {kaleidoscope && (
-                  <ControlSelect
-                    label="Kaleidoscope Segments"
-                    value={String(kaleidoscopeSegments)}
-                    options={[
-                      { value: "4",  label: "4 segments" },
-                      { value: "6",  label: "6 segments" },
-                      { value: "8",  label: "8 segments" },
-                      { value: "10", label: "10 segments" },
-                      { value: "12", label: "12 segments" },
-                    ]}
-                    onChange={v => setKaleidoscopeSegments(Number(v))}
-                  />
+                {visualSettings.kaleidoscope && (
+                  <>
+                    <ControlSelect
+                      label="Kaleidoscope Segments"
+                      value={String(visualSettings.kaleidoscopeSegments)}
+                      options={[
+                        { value: "4",  label: "4 segments" },
+                        { value: "6",  label: "6 segments" },
+                        { value: "8",  label: "8 segments" },
+                        { value: "10", label: "10 segments" },
+                        { value: "12", label: "12 segments" },
+                      ]}
+                      onChange={v => setVisual("kaleidoscopeSegments", Number(v))}
+                    />
+                    <ControlToggle
+                      label="Kaleidoscope Rotate"
+                      value={visualSettings.kaleidoscopeRotate}
+                      onChange={v => setVisual("kaleidoscopeRotate", v)}
+                    />
+                    {/* Direction — two-button segmented control */}
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-mono text-muted-foreground">Rotation Direction</span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {(["clockwise", "counterclockwise"] as KaleidoscopeDirection[]).map(dir => {
+                          const selected = visualSettings.kaleidoscopeDirection === dir;
+                          return (
+                            <button
+                              key={dir}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => setVisual("kaleidoscopeDirection", dir)}
+                              className={`rounded-md border px-2 py-1.5 text-[10px] font-mono text-center transition-colors ${
+                                selected
+                                  ? "border-primary/70 bg-primary/15 text-primary"
+                                  : "border-border/60 bg-muted/30 text-muted-foreground hover:border-border hover:text-foreground"
+                              }`}
+                            >
+                              {dir === "clockwise" ? "Clockwise" : "C-clockwise"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <ControlSlider
+                      label={`Rotation Speed`}
+                      value={visualSettings.kaleidoscopeSpeed}
+                      min={0}
+                      max={200}
+                      onChange={v => setVisual("kaleidoscopeSpeed", v)}
+                    />
+                  </>
                 )}
               </div>
             </div>
