@@ -280,6 +280,8 @@ function App() {
   const [audioSourceMode,      setAudioSourceMode]      = useState<AudioSourceMode>(DEFAULT_AUDIO_SOURCE_MODE);
 
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const audioRef      = useRef<HTMLAudioElement | null>(null);
   const currentUrlRef = useRef<string | null>(null);
@@ -389,6 +391,26 @@ function App() {
     liveInput.stop();
   }, [recorder, liveInput]);
 
+  // ── Fullscreen ──────────────────────────────────────────────────────────────
+  // Only the visualizer stage goes fullscreen, so every control (transport,
+  // sliders, panels) is physically outside the fullscreen element and cannot be
+  // interacted with. Esc or the small ✕ button exits.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(document.fullscreenElement === stageRef.current && stageRef.current !== null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void el.requestFullscreen().catch(() => { /* denied or unsupported */ });
+    }
+  }, []);
+
   // Output format is locked during recording so it can't change mid-capture.
   function setOutputSetting<K extends keyof OutputSettings>(key: K, value: OutputSettings[K]) {
     if (recordingLocked) return;
@@ -418,7 +440,12 @@ function App() {
         <section className="flex-1 flex flex-col bg-muted/10 p-6 gap-4 relative isolate overflow-hidden">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] -z-10" />
 
-          <div className="flex-1 border border-border/40 rounded-xl bg-black shadow-2xl relative overflow-hidden min-h-0">
+          <div
+            ref={stageRef}
+            className={`flex-1 bg-black relative overflow-hidden min-h-0 ${
+              isFullscreen ? "" : "border border-border/40 rounded-xl shadow-2xl"
+            }`}
+          >
             <Visualizer
               low={bands.low}
               mid={bands.mid}
@@ -432,19 +459,47 @@ function App() {
               onCanvasReady={setCanvas}
               onPerformanceWarning={setPerfWarning}
             />
-            {/* Active template name */}
-            <div className="absolute top-3 left-3 z-10 pointer-events-none">
-              <div className="flex items-center gap-2 rounded-md bg-black/40 backdrop-blur-sm border border-border/40 px-2.5 py-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                <span className="text-[10px] font-mono tracking-wide text-foreground/80">
-                  {getTemplateMeta(templateId).name}
-                </span>
+            {/* Active template name — hidden in fullscreen (pure visual mode) */}
+            {!isFullscreen && (
+              <div className="absolute top-3 left-3 z-10 pointer-events-none">
+                <div className="flex items-center gap-2 rounded-md bg-black/40 backdrop-blur-sm border border-border/40 px-2.5 py-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[10px] font-mono tracking-wide text-foreground/80">
+                    {getTemplateMeta(templateId).name}
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg pointer-events-none z-10" />
-            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/40 rounded-tr-lg pointer-events-none z-10" />
-            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary/40 rounded-bl-lg pointer-events-none z-10" />
-            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary/40 rounded-br-lg pointer-events-none z-10" />
+            )}
+            {/* Fullscreen toggle */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              title={isFullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}
+              className="absolute top-3 right-3 z-10 flex items-center justify-center w-8 h-8 rounded-md
+                bg-black/40 backdrop-blur-sm border border-border/40 text-foreground/70
+                hover:text-foreground hover:border-border transition-colors"
+            >
+              {isFullscreen ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                  <path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+              )}
+            </button>
+            {!isFullscreen && (
+              <>
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary/40 rounded-tl-lg pointer-events-none z-10" />
+                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary/40 rounded-tr-lg pointer-events-none z-10" />
+                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary/40 rounded-bl-lg pointer-events-none z-10" />
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary/40 rounded-br-lg pointer-events-none z-10" />
+              </>
+            )}
           </div>
 
           <div className="rounded-xl border border-border/40 bg-card/60 backdrop-blur-sm px-5 py-4 flex flex-col gap-4 shrink-0">
