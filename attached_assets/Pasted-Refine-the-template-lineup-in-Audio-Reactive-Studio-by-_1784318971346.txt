@@ -1,0 +1,495 @@
+Refine the template lineup in Audio Reactive Studio by replacing two weaker abstract templates with three more ambitious, recognisable shape-based templates.
+
+The current app is working. It includes:
+
+- uploaded track mode
+- live input mode
+- Low / Mid / High audio analysis
+- visual controls
+- monochrome default palette
+- geometric templates
+- Kaleidoscope with segments and rotation controls
+- live visual control changes during recording
+- MP4 / WebM recording
+- 4K output
+- preview and download
+
+Do not rebuild the app from scratch.
+
+GOAL
+
+Move the visual template lineup further toward bold, memorable, recognisable forms.
+
+Remove these templates:
+
+- Polyhedron Storm
+- Lissajous Lattice
+
+Add these three templates:
+
+- Smiling Face Emitter
+- Mushroom Pulse
+- Reactive Eye
+
+After this task, the app should contain exactly these templates:
+
+1. Cube Swarm
+2. Laser Lattice
+3. Wireframe Bloom
+4. Fibonacci Spiral
+5. Sacred Geometry Bloom
+6. Smiling Face Emitter
+7. Mushroom Pulse
+8. Reactive Eye
+
+Update:
+
+- template metadata
+- template IDs
+- selector options
+- template factory wiring
+- labels and descriptions
+- any dead imports or dead code paths
+- TypeScript unions and interfaces if needed
+
+Do not leave removed templates selectable.
+
+Do not leave dead template code in the main selector path.
+
+CORE PRODUCT PRINCIPLE
+
+Every template must still be visually strong when audio is paused.
+
+The new templates should be recognisable shapes, but they must still feel like deliberate motion-design / VJ visuals, not clip-art or childish stickers.
+
+The new templates should be:
+
+- clean
+- stylised
+- bold
+- high-contrast
+- usable with Kaleidoscope
+- recognisable at a glance
+
+Do not make them look like flat emoji pasted on the screen.
+
+They should be constructed from the same visual language as the rest of the app:
+
+- points
+- particles
+- line segments
+- wireframes
+- instanced geometry
+- buffer geometry
+- additive or luminous materials where appropriate
+- real depth
+
+AUDIO PRINCIPLE
+
+Preserve the current Low / Mid / High system:
+
+Low:
+20 Hz to 250 Hz
+
+Mid:
+250 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+As with the rest of the app:
+
+- individual elements react differently
+- elements have different Low / Mid / High affinities
+- the whole scene must not simply scale as one object
+- the whole scene must not rotate as one object as the main reaction
+- the whole canvas must not flash as the main reaction
+- at 0% influence, that band has no visual effect
+- resting movement continues when influence is 0%
+
+TEMPLATE 1: SMILING FACE EMITTER
+
+Create a recognisable smiling face shape.
+
+This should not be a flat yellow emoji.
+
+Visual idea:
+
+A stylised face built from luminous line and particle geometry, with:
+
+- circular or near-circular head outline
+- two recognisable eyes
+- a recognisable smiling mouth
+- internal depth and dimension
+- subtle 3D layering
+- visible structure even when paused
+
+The face should feel intentional and iconic.
+
+Most importantly:
+
+The smiling mouth should emit or spew particles outward.
+
+This is the main signature behaviour.
+
+Construction guidance:
+
+- Head outline can be a ring, line loop, particle ring, or wireframe circle
+- Eyes can be point clusters, ring nodes, or small geometric markers
+- Mouth can be a curved line or segmented geometry
+- The mouth should be the main particle emitter region
+- Emitted particles should travel outward from the mouth region into space
+- The emitted particles can dissipate, fade, or recycle
+
+Base movement:
+
+- The face structure should hold together and remain recognisable
+- Small resting motion is allowed in the outline and facial features
+- Mouth-emitted particles should drift even without audio
+- The face should not completely deform beyond recognition
+
+Low reaction:
+
+- Low-sensitive emitted particles should burst outward more strongly from the mouth
+- Some facial outline elements may pulse locally
+- The whole face must not just scale up and down as one object
+
+Mid reaction:
+
+- Mid-sensitive features should wobble, flex, or ripple locally
+- The smile curve can become more animated
+- Emitted particles can gain turbulence
+- Do not rotate the entire face as one parent group
+
+High reaction:
+
+- Eye and mouth nodes can sparkle
+- A changing subset of emitted particles can brighten and flicker
+- Add short glints to facial points and particle trails
+- Avoid full-scene flashing
+
+Shared controls:
+
+- Visual Density controls emitter particle count and structural node count
+- Motion Speed controls resting motion and emitted particle drift
+- Element Size controls outline point size / line weight impression / particle size
+- Depth controls 3D separation and emitted particle depth spread
+- Glow controls luminous intensity
+- Palette controls colour scheme
+
+TEMPLATE 2: MUSHROOM PULSE
+
+Create a recognisable mushroom shape.
+
+This should be a stylised psychedelic or geometric mushroom silhouette, not a photoreal mushroom.
+
+Visual idea:
+
+A central mushroom with:
+
+- clear cap
+- clear stem
+- optional underside gill-like or radial structures
+- geometric or particle detailing
+- some 3D depth so it is not a flat icon
+
+It should be unmistakably a mushroom when paused.
+
+Construction guidance:
+
+- Cap may be built from a domed point field, curved line structure, or layered geometry
+- Stem may be a structured column or particle / wireframe form
+- Optional spores or particles may drift around it
+- Underside details can help give it character
+- The template should feel a bit surreal or trippy, but not messy
+
+Base movement:
+
+- The mushroom can gently breathe or pulse in place
+- Spores / ambient particles can drift around it
+- Small cap undulations or subtle layered movement are welcome
+- The shape must remain recognisable
+
+Low reaction:
+
+- Low-sensitive cap regions can pulse or throb locally
+- Some spores or particles can get pushed outward
+- Stem structure may show restrained local pressure or deformation
+- Do not scale the whole mushroom as one rigid object
+
+Mid reaction:
+
+- Mid-sensitive gill, cap, or contour structures can ripple
+- Add flowing movement across the cap surface
+- Spores can gain more dynamic swirling motion
+- Do not rotate the whole mushroom root as the main effect
+
+High reaction:
+
+- Spores and cap-edge details can sparkle
+- Small bright flickers can appear on cap points or around the silhouette
+- Selected particle regions can twinkle
+- Avoid flashing the entire mushroom or canvas
+
+Shared controls:
+
+- Visual Density controls detail level, spore count, and structural complexity
+- Motion Speed controls ambient drift and contour motion
+- Element Size controls mushroom detail size and particle size
+- Depth controls mushroom thickness and spore depth spread
+- Glow controls luminous intensity
+- Palette controls colours
+
+TEMPLATE 3: REACTIVE EYE
+
+Create a proper eye shape.
+
+This must be a clear eye with:
+
+- outer eye shape
+- iris
+- pupil
+- visible central gaze structure
+
+Do not make this a vague almond outline.
+Do not make it just a ring.
+Do not make it merely “eye-like”.
+
+It needs to read clearly as an eye.
+
+Visual idea:
+
+A stylised, high-contrast, reactive eye built from layered geometry with strong central focus.
+
+The pupil and iris must be obvious.
+
+Construction guidance:
+
+- Outer eye shape can be built from line or particle contours
+- Iris should be a distinct circular or radially structured region
+- Pupil should be a clearly darker or more concentrated central area
+- Additional radial detail around the iris is encouraged
+- The eye can have concentric or wireframe layering
+- It should work extremely well with Kaleidoscope
+
+Base movement:
+
+- The eye should have subtle living motion even when paused
+- Iris detail can shimmer or rotate locally
+- Outer contour can drift subtly
+- The eye must remain recognisable and centered
+
+Low reaction:
+
+- Low-sensitive iris and contour regions can pulse outward locally
+- Some surrounding particles can be pushed away from the eye
+- Do not scale the whole eye uniformly
+
+Mid reaction:
+
+- Mid-sensitive iris structures can twist, ripple, or show radial turbulence
+- The pupil edge and iris detail can animate independently
+- Add local wave motion across iris lines
+- Do not rotate the full eye root as the main effect
+
+High reaction:
+
+- The pupil edge, iris highlights, and eyelid points can sparkle
+- Selected radial features can flicker brightly
+- Add controlled glints around the eye
+- Avoid full-canvas flashing
+
+Optional good behaviour:
+
+- The pupil can subtly dilate with some band influence if done tastefully
+- If added, this must be local and controlled, not cartoonish
+
+Shared controls:
+
+- Visual Density controls iris detail, outer contour detail, and surrounding particles
+- Motion Speed controls subtle living motion
+- Element Size controls line weight impression and node scale
+- Depth controls layered separation and radial thickness
+- Glow controls luminous intensity
+- Palette controls colours
+
+STYLE REQUIREMENTS FOR ALL THREE NEW TEMPLATES
+
+- Must look good in Monochrome by default
+- Must still support:
+  - Monochrome
+  - Cyan Violet
+  - Ember
+- Must have strong silhouette and composition
+- Must remain readable in paused state
+- Must not collapse into random abstract noise
+- Must not feel like a static flat SVG pasted into WebGL
+- Must have real 3D or layered depth
+- Must work with Kaleidoscope
+- Must work with live input and uploaded track modes
+
+TEMPLATE ARCHITECTURE
+
+Preserve the current template architecture:
+
+- one persistent WebGLRenderer
+- one visible renderer canvas
+- one scene
+- one camera
+- one animation loop
+- one ResizeObserver
+- one active template root at a time
+
+Each template should continue exposing a generic THREE.Object3D root and update method.
+
+When switching templates:
+
+1. remove previous template root from scene
+2. dispose old template resources
+3. create new template instance
+4. add new root to scene
+5. continue using existing renderer, camera, animation loop, and recording stream
+
+Do not create another canvas, renderer, scene, or animation loop.
+
+KALEIDOSCOPE, RECORDING, LIVE INPUT
+
+The new templates must work with:
+
+- Kaleidoscope on/off
+- Kaleidoscope segment changes
+- Kaleidoscope rotation on/off
+- Kaleidoscope direction changes
+- Kaleidoscope speed changes
+- uploaded track mode
+- live input mode
+- MP4 recording
+- WebM recording
+- 720p
+- 1080p
+- 4K
+- landscape
+- portrait
+- square
+- live artistic control changes during recording
+
+The recording system must continue capturing the same persistent renderer canvas.
+
+Do not replace the visible canvas.
+
+UI AND DESCRIPTIONS
+
+Update the template descriptions to match the new lineup.
+
+Use descriptions like:
+
+Cube Swarm:
+"Reactive cubes drifting and tumbling through space."
+
+Laser Lattice:
+"Reactive line structures cutting through a deep spatial grid."
+
+Wireframe Bloom:
+"Layered wireframe geometry unfolding and pulsing through space."
+
+Fibonacci Spiral:
+"A golden-angle spiral of reactive geometric elements."
+
+Sacred Geometry Bloom:
+"Layered radial geometry built from circles, polygons, and luminous intersections."
+
+Smiling Face Emitter:
+"A stylised smiling face that emits reactive particles from its mouth."
+
+Mushroom Pulse:
+"A geometric mushroom form with pulsing contours and drifting spores."
+
+Reactive Eye:
+"A layered reactive eye with iris, pupil, and shimmering radial detail."
+
+Make sure the active template label updates correctly.
+
+PERFORMANCE
+
+Use efficient Three.js techniques:
+
+- BufferGeometry
+- typed arrays
+- shared materials
+- instanced geometry where useful
+- line geometry where useful
+- points where useful
+- no React state updates inside requestAnimationFrame
+- avoid new arrays and objects every frame
+- no one Mesh per tiny element unless element count is intentionally low and justified
+
+Medium density should remain smooth on an ordinary laptop.
+
+High density should remain usable.
+
+CLEANUP
+
+Every new template must dispose of all resources properly:
+
+- geometry
+- materials
+- textures if any
+- internal buffers where relevant
+
+Repeated switching between all templates must not create:
+
+- duplicate roots
+- duplicate canvases
+- duplicate renderers
+- duplicate animation loops
+- memory leaks
+- stale scene objects
+- WebGL context errors
+
+VALIDATION
+
+Test all of the following:
+
+1. Confirm Polyhedron Storm and Lissajous Lattice are gone.
+2. Confirm Smiling Face Emitter appears in the selector.
+3. Confirm Mushroom Pulse appears in the selector.
+4. Confirm Reactive Eye appears in the selector.
+5. With audio paused, confirm all three are clearly recognisable:
+   - smiley face
+   - mushroom
+   - eye
+6. Confirm the eye clearly has an iris and pupil.
+7. Confirm the smiling face mouth emits particles.
+8. Play audio and test Low at 200% with Mid and High at 0% on all three new templates.
+9. Test Mid at 200% with Low and High at 0%.
+10. Test High at 200% with Low and Mid at 0%.
+11. Confirm individual elements react, not the whole scene.
+12. Toggle Kaleidoscope on each new template.
+13. Change segment count.
+14. Enable Kaleidoscope rotation.
+15. Change Kaleidoscope speed and direction.
+16. Record a short clip in MP4 if supported.
+17. Record a short clip in WebM.
+18. Confirm the downloaded recordings contain the active new templates.
+19. Test at least one short 4K recording.
+20. Test uploaded track mode.
+21. Test live input mode.
+22. Switch templates during recording.
+23. Confirm the video captures the live switch.
+24. Confirm there is still one visible renderer canvas.
+25. Confirm no runtime errors.
+26. Run TypeScript checks and fix all errors.
+
+After implementation, explain:
+
+- which templates were removed
+- which templates were added
+- which files changed
+- how Smiling Face Emitter is constructed
+- how the mouth emitter works
+- how Mushroom Pulse is constructed
+- how Reactive Eye is constructed
+- how the iris and pupil are represented
+- how Low, Mid, and High affect each new template
+- how Kaleidoscope and recording remain compatible
+- how resources are cleaned up

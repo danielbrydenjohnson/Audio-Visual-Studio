@@ -8,12 +8,13 @@
  */
 export type VisualTemplateId =
   | "cube-swarm"
-  | "polyhedron-storm"
   | "laser-lattice"
   | "wireframe-bloom"
   | "fibonacci-spiral"
   | "sacred-geometry-bloom"
-  | "lissajous-lattice";
+  | "smiling-face-emitter"
+  | "mushroom-pulse"
+  | "reactive-eye";
 
 export interface VisualTemplateMeta {
   id:          VisualTemplateId;
@@ -26,12 +27,7 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
   {
     id:          "cube-swarm",
     name:        "Cube Swarm",
-    description: "Thousands of reactive cubes drifting and tumbling through space.",
-  },
-  {
-    id:          "polyhedron-storm",
-    name:        "Polyhedron Storm",
-    description: "Angular geometric forms moving through turbulent 3D currents.",
+    description: "Reactive cubes drifting and tumbling through space.",
   },
   {
     id:          "laser-lattice",
@@ -46,17 +42,27 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
   {
     id:          "fibonacci-spiral",
     name:        "Fibonacci Spiral",
-    description: "A deep golden-angle spiral whose arms react band by band.",
+    description: "A golden-angle spiral of reactive geometric elements.",
   },
   {
     id:          "sacred-geometry-bloom",
     name:        "Sacred Geometry Bloom",
-    description: "Concentric rings and polygons blooming in layered symmetry.",
+    description: "Layered radial geometry built from circles, polygons, and luminous intersections.",
   },
   {
-    id:          "lissajous-lattice",
-    name:        "Lissajous Lattice",
-    description: "Interwoven harmonic curve strands weaving through depth.",
+    id:          "smiling-face-emitter",
+    name:        "Smiling Face Emitter",
+    description: "A stylised smiling face that emits reactive particles from its mouth.",
+  },
+  {
+    id:          "mushroom-pulse",
+    name:        "Mushroom Pulse",
+    description: "A geometric mushroom form with pulsing contours and drifting spores.",
+  },
+  {
+    id:          "reactive-eye",
+    name:        "Reactive Eye",
+    description: "A layered reactive eye with iris, pupil, and shimmering radial detail.",
   },
 ] as const;
 
