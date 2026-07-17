@@ -12,8 +12,6 @@ export type VisualTemplateId =
   | "wireframe-bloom"
   | "fibonacci-spiral"
   | "sacred-geometry-bloom"
-  | "smiling-face-emitter"
-  | "mushroom-pulse"
   | "reactive-eye";
 
 export interface VisualTemplateMeta {
@@ -48,16 +46,6 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
     id:          "sacred-geometry-bloom",
     name:        "Sacred Geometry Bloom",
     description: "Layered radial geometry built from circles, polygons, and luminous intersections.",
-  },
-  {
-    id:          "smiling-face-emitter",
-    name:        "Smiling Face Emitter",
-    description: "A stylised smiling face that emits reactive particles from its mouth.",
-  },
-  {
-    id:          "mushroom-pulse",
-    name:        "Mushroom Pulse",
-    description: "A geometric mushroom form with pulsing contours and drifting spores.",
   },
   {
     id:          "reactive-eye",

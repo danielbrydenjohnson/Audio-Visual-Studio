@@ -125,7 +125,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
   // ── Eye contour ────────────────────────────────────────────────────────────
   const contourGeo = eyeContourGeo(W, topH, botH, 64);
   const contourMat = lmat();
-  addToRoot(contourGeo, contourMat);
+  const contourSeg = addToRoot(contourGeo, contourMat);
 
   // ── Iris group (rotates as a unit for MID reaction) ───────────────────────
   const irisGroup = new THREE.Group();
@@ -214,56 +214,66 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       const sp = shared.uSpeed.value, es = shared.uElementSize.value, gl = shared.uGlow.value;
       const ca = shared.uColorA.value, cb = shared.uColorB.value, cc = shared.uColorC.value;
 
-      // Eye contour — structural, LOW lifts brightness slightly
+      // Whole eye — bass makes the entire eye visibly pump
+      const eyePump = 1 + audio.low * 0.22;
+      root.scale.setScalar(eyePump);
+
+      // Eye contour — LOW slams brightness up hard (kick = the eye "opens")
       paletteMix(0.06, ca, cb, cc, tmpC);
-      const ctB = 0.65 + gl * 0.50 + audio.low * 0.20;
+      const ctB = 0.45 + gl * 0.50 + audio.low * 1.60;
       contourMat.color.setRGB(tmpC.r * ctB, tmpC.g * ctB, tmpC.b * ctB);
-      contourMat.opacity = Math.min(1, 0.60 + audio.low * 0.25 + gl * 0.18);
+      contourMat.opacity = Math.min(1, 0.40 + audio.low * 0.60 + gl * 0.18);
+      // Bass also stretches the lids vertically — a widening / squinting motion
+      contourSeg.scale.y = 1 + audio.low * 0.55;
 
-      // Iris group — slow resting rotation; MID accelerates it
-      irisGroup.rotation.z += dt * sp * 0.07 * (1 + audio.mid * 3.5);
+      // Iris group — MID whips the rotation around dramatically
+      irisGroup.rotation.z = (irisGroup.rotation.z + dt * sp * (0.10 + audio.mid * 4.5 + audio.high * 1.5)) % TAU;
+      // MID also swells the whole iris
+      irisGroup.scale.setScalar(1 + audio.mid * 0.35);
 
-      // Iris rings — each breathes on own phase (LOW); HIGH flickers on subsets
+      // Iris rings — LOW shockwave breathe; HIGH hard strobe on subsets
       for (const ring of irisRings) {
         const lowR  = audio.low  * ring.lowAff;
         const midR  = audio.mid  * ring.midAff;
         const highR = audio.high * ring.highAff;
-        const flick = highR * (Math.sin(ring.cmix * 79.3 + time * 3.1) > 0.50 ? 1 : 0);
+        const flick = highR * (Math.sin(ring.cmix * 79.3 + time * 3.1) > 0.30 ? 1 : 0);
         const breathe = 1 + Math.sin(time * ring.pulseSpeed + ring.pulsePhase) * ring.pulseAmp
-                          + lowR * 0.28;
+                          + lowR * 0.85;
         ring.seg.scale.setScalar(breathe);
         ring.seg.position.z = ring.zFrac * hd;
         paletteMix(ring.cmix, ca, cb, cc, tmpC);
-        const rB = 0.50 + gl * 0.55 + lowR * 0.30 + midR * 0.20 + flick * 1.30;
+        const rB = 0.35 + gl * 0.55 + lowR * 1.20 + midR * 0.90 + flick * 2.60;
         ring.mat.color.setRGB(tmpC.r * rB, tmpC.g * rB, tmpC.b * rB);
-        ring.mat.opacity = Math.min(1, 0.45 + gl * 0.30 + lowR * 0.28 + flick * 0.45);
+        ring.mat.opacity = Math.min(1, 0.30 + gl * 0.25 + lowR * 0.60 + midR * 0.40 + flick * 0.70);
       }
 
-      // Spokes — colour driven by MID (group rotation handles motion)
+      // Spokes — MID blazes them; near-invisible when quiet
       paletteMix(0.50, ca, cb, cc, tmpC);
-      const spB = 0.42 + gl * 0.50 + audio.mid * 0.35;
+      const spB = 0.22 + gl * 0.40 + audio.mid * 1.80;
       spokesMat.color.setRGB(tmpC.r * spB, tmpC.g * spB, tmpC.b * spB);
-      spokesMat.opacity = Math.min(1, 0.38 + audio.mid * 0.28 + gl * 0.18);
+      spokesMat.opacity = Math.min(1, 0.18 + audio.mid * 0.80 + gl * 0.15);
 
-      // Pupil ring — subtle dilation with LOW
+      // Pupil ring — dramatic bass dilation, contracts hard on treble
       paletteMix(0.85, ca, cb, cc, tmpC);
-      const dilation = 1 + audio.low * 0.16;
+      const dilation = Math.max(0.45, 1 + audio.low * 1.10 - audio.high * 0.35);
       pupilSeg.scale.setScalar(dilation);
-      const pB = 0.90 + gl * 0.30 + audio.high * 0.50;
+      const pB = 0.70 + gl * 0.30 + audio.high * 2.00 + audio.low * 0.60;
       pupilMat.color.setRGB(tmpC.r * pB, tmpC.g * pB, tmpC.b * pB);
-      pupilMat.opacity = Math.min(1, 0.85 + audio.high * 0.15);
+      pupilMat.opacity = Math.min(1, 0.70 + audio.high * 0.30 + audio.low * 0.30);
 
-      // Outer points — shimmer (no position change; only color animates)
+      // Outer points — HIGH strobes them violently; nearly dark when quiet
       const colA = oGeo.attributes.color as THREE.BufferAttribute;
+      const oScale = 1 + audio.high * 0.45 + audio.low * 0.20;
+      oPoints.scale.setScalar(oScale);
       for (let i = 0; i < oN; i++) {
         const shimmer = 0.50 + 0.50 * Math.sin(oPh[i] + time * 0.85 + i * 0.41);
-        const flick   = audio.high * (Math.sin(i * 41.7 + time * 5.8) > 0.50 ? 1 : 0);
+        const flick   = audio.high * (Math.sin(i * 41.7 + time * 5.8) > 0.20 ? 1 : 0);
         paletteMix(oCmix[i], ca, cb, cc, tmpC);
-        const br = oBr[i] * shimmer * (0.35 + gl * 0.50) * (1 + flick * 1.80);
+        const br = oBr[i] * shimmer * (0.18 + gl * 0.35) * (1 + flick * 5.0 + audio.low * 1.2);
         colA.setXYZ(i, tmpC.r * br, tmpC.g * br, tmpC.b * br);
       }
       colA.needsUpdate = true;
-      oMat.size = Math.max(1.2, 2.5 * es);
+      oMat.size = Math.max(1.2, 2.5 * es * (1 + audio.high * 1.2));
     },
     onFraming(_nw, _nh, nd) { hd = nd; },
     dispose() {
