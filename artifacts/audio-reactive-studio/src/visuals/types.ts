@@ -11,8 +11,7 @@ export type VisualTemplateId =
   | "laser-lattice"
   | "wireframe-bloom"
   | "fibonacci-spiral"
-  | "sacred-geometry-bloom"
-  | "reactive-eye";
+  | "sacred-geometry-bloom";
 
 export interface VisualTemplateMeta {
   id:          VisualTemplateId;
@@ -46,11 +45,6 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
     id:          "sacred-geometry-bloom",
     name:        "Sacred Geometry Bloom",
     description: "Layered radial geometry built from circles, polygons, and luminous intersections.",
-  },
-  {
-    id:          "reactive-eye",
-    name:        "Reactive Eye",
-    description: "A layered reactive eye with iris, pupil, and shimmering radial detail.",
   },
 ] as const;
 

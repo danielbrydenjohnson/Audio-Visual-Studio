@@ -5,7 +5,6 @@ import { laserLatticeTemplate }        from "@/visuals/templates/laserLattice";
 import { wireframeBloomTemplate }      from "@/visuals/templates/wireframeBloom";
 import { fibonacciSpiralTemplate }     from "@/visuals/templates/fibonacciSpiral";
 import { sacredGeometryBloomTemplate } from "@/visuals/templates/sacredGeometryBloom";
-import { reactiveEyeTemplate }         from "@/visuals/templates/reactiveEye";
 
 /** Registry mapping each template id to its implementation. */
 const REGISTRY: Record<VisualTemplateId, VisualTemplate> = {
@@ -14,7 +13,6 @@ const REGISTRY: Record<VisualTemplateId, VisualTemplate> = {
   "wireframe-bloom":       wireframeBloomTemplate,
   "fibonacci-spiral":      fibonacciSpiralTemplate,
   "sacred-geometry-bloom": sacredGeometryBloomTemplate,
-  "reactive-eye":          reactiveEyeTemplate,
 };
 
 export function getTemplate(id: VisualTemplateId): VisualTemplate {
