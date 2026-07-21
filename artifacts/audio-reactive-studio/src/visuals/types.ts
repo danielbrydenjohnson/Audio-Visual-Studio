@@ -11,7 +11,9 @@ export type VisualTemplateId =
   | "laser-lattice"
   | "wireframe-bloom"
   | "fibonacci-spiral"
-  | "sacred-geometry-bloom";
+  | "sacred-geometry-bloom"
+  | "golden-galaxy"
+  | "wireframe-core";
 
 export interface VisualTemplateMeta {
   id:          VisualTemplateId;
@@ -45,6 +47,16 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
     id:          "sacred-geometry-bloom",
     name:        "Sacred Geometry Bloom",
     description: "Layered radial geometry built from circles, polygons, and luminous intersections.",
+  },
+  {
+    id:          "golden-galaxy",
+    name:        "Golden Galaxy",
+    description: "A spiral galaxy of luminous stars moving through golden-ratio space.",
+  },
+  {
+    id:          "wireframe-core",
+    name:        "Wireframe Core",
+    description: "A simple nested 3D wireframe shape pulsing and unfolding in space.",
   },
 ] as const;
 

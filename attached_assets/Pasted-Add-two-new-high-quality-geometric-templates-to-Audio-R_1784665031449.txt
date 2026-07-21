@@ -1,0 +1,428 @@
+Add two new high-quality geometric templates to Audio Reactive Studio.
+
+The current working template lineup includes:
+
+- Cube Swarm
+- Laser Lattice
+- Wireframe Bloom
+- Fibonacci Spiral
+- Sacred Geometry Bloom
+
+Do not remove or modify these existing working templates except where required to register the new templates cleanly.
+
+Do not re-add failed recognisable object templates.
+
+Do not add face, mushroom, eye, emoji, character, or illustrative templates.
+
+GOAL
+
+Add two new templates that build on the strongest existing visual directions:
+
+1. Golden Galaxy
+2. Wireframe Core
+
+These should be new templates with new names and new template IDs.
+
+They should not replace the existing Fibonacci Spiral or Wireframe Bloom.
+
+After this task, the app should include the existing five templates plus these two new additions.
+
+NEW TEMPLATE 1: GOLDEN GALAXY
+
+Template name:
+
+Golden Galaxy
+
+Description:
+
+"A spiral galaxy of luminous stars moving through golden-ratio space."
+
+Visual concept:
+
+Create a spiral-galaxy-style template inspired by Fibonacci Spiral, but more cosmic, spacious, and dynamic.
+
+It should feel like a galaxy made from stars, dust, and luminous spiral arms.
+
+It should not look like the existing Fibonacci Spiral copied with different colours.
+
+It should have:
+
+- multiple spiral arms
+- golden-angle distribution
+- star-like points
+- brighter star nodes
+- faint dust-like particles
+- real 3D depth
+- slow forward movement through space similar in feeling to Laser Lattice
+- a sense that the viewer is travelling through or past the galaxy
+- strong paused-state composition
+
+Use a mathematical structure based on:
+
+- golden angle spacing, approximately 137.5 degrees
+- expanding radius
+- multiple arm offsets
+- z-depth distribution
+- varied star brightness
+- varied star size
+- varied star movement speed
+
+The result should be recognisably galaxy-like when audio is paused.
+
+It should work especially well with Kaleidoscope.
+
+Movement:
+
+Add spatial movement similar to Laser Lattice.
+
+Suggested behaviour:
+
+- stars drift slowly through depth
+- some stars and dust move toward the camera
+- spiral arms subtly flow locally
+- stars recycle or wrap when leaving the depth volume
+- dust particles move at different speeds
+- motion should feel like travelling through space
+
+Do not rotate the entire template root as the main animation.
+
+Movement should come from individual stars, dust points, arm phase offsets, and depth motion.
+
+Low reaction:
+
+- Low-sensitive stars pulse slightly larger and brighter
+- some Low-sensitive stars push outward along their local spiral arm
+- some dust particles move faster through depth
+- avoid scaling the whole galaxy
+
+Mid reaction:
+
+- Mid-sensitive arm sections bend, twist, or phase-shift locally
+- different spiral regions should move differently
+- add subtle turbulent flow across the arms
+- do not rotate the entire galaxy as one object
+
+High reaction:
+
+- High-sensitive stars sparkle independently
+- selected bright stars can flicker or flare briefly
+- dust points can twinkle in changing subsets
+- avoid full-canvas flashing
+
+Shared controls:
+
+- Visual Density controls star and dust count
+- Motion Speed controls depth travel and spiral flow speed
+- Element Size controls star and dust size
+- Depth controls galaxy thickness and travel depth
+- Glow controls luminous intensity
+- Brightness affects final output through existing global brightness
+- Palette controls colour scheme
+
+Palette behaviour:
+
+- Monochrome should look like white stars in deep black space
+- Cyan Violet should create a cosmic neon galaxy
+- Ember should create a warm gold/orange galaxy
+
+Use efficient Three.js patterns:
+
+- BufferGeometry
+- Points and/or LineSegments
+- typed arrays
+- shader material if appropriate
+- no one mesh per star
+
+NEW TEMPLATE 2: WIREFRAME CORE
+
+Template name:
+
+Wireframe Core
+
+Description:
+
+"A simple nested 3D wireframe shape pulsing and unfolding in space."
+
+Visual concept:
+
+Create a clean central wireframe geometric form.
+
+This should be simpler than a cathedral.
+
+It should be based on one strong recognisable geometric structure rather than a complicated architectural scene.
+
+Good options:
+
+- nested wireframe cubes
+- nested octahedrons
+- diamond-shaped wireframe shells
+- concentric rings
+- a central geometric core made from repeated simple frames
+
+The result should feel like a luminous 3D object or machine core.
+
+It should be visually strong when paused.
+
+It should not look like a corridor, cathedral, building, or complex environment.
+
+It should not copy Wireframe Bloom exactly.
+
+Visual requirements:
+
+- central readable geometric shape
+- nested layers
+- real 3D depth
+- clean line work
+- strong silhouette
+- slight independent movement between layers
+- simple enough to understand immediately
+- strong with Kaleidoscope enabled
+
+Suggested structure:
+
+- A root group containing a controlled number of wireframe shells
+- Each shell can be a cube, octahedron, diamond, ring, or hybrid simple form
+- Shells should sit at slightly different scales and z-depths
+- Each shell should have its own phase, speed, brightness, Low affinity, Mid affinity, High affinity, and random seed
+- Some small node points at corners or intersections are allowed if efficient
+
+Do not create hundreds of individual mesh objects.
+
+Use efficient line geometry:
+
+- LineSegments
+- EdgesGeometry where appropriate
+- BufferGeometry
+- shared materials where possible
+- controlled object count
+
+Movement:
+
+The core should move subtly and elegantly.
+
+Suggested behaviour:
+
+- nested shells rotate slowly at different rates
+- some shells breathe or flex slightly
+- layers drift slightly in depth
+- corner nodes or edge highlights shimmer
+- movement should be clear but not chaotic
+
+Do not rotate the full root group as the only movement.
+
+Each shell should have its own motion so the structure feels layered.
+
+Low reaction:
+
+- Low-sensitive shells pulse slightly in scale or edge brightness
+- selected shells push forward or backward a little
+- selected corner nodes may grow briefly
+- avoid scaling the complete core uniformly
+
+Mid reaction:
+
+- Mid-sensitive shells twist, rotate, or phase-shift independently
+- different layers respond at different rates
+- add small local offsets or wobble to selected edges
+- avoid rotating everything as one rigid object
+
+High reaction:
+
+- selected edges and corner nodes brighten
+- a changing subset of line segments flickers or glints
+- high-sensitive details sparkle briefly
+- avoid full-canvas flashing
+
+Shared controls:
+
+- Visual Density controls shell count and edge/detail density
+- Motion Speed controls shell movement and phase speed
+- Element Size controls shell scale and line intensity
+- Depth controls z separation and spatial thickness
+- Glow controls luminous intensity
+- Palette controls colours
+
+Palette behaviour:
+
+- Monochrome should look premium and clean
+- Cyan Violet should look futuristic
+- Ember should look like glowing copper or gold wire
+
+TEMPLATE REGISTRATION
+
+Add new template IDs:
+
+- golden-galaxy
+- wireframe-core
+
+Update the strongly typed VisualTemplateId union.
+
+Update the central template metadata.
+
+Update the template factory.
+
+Update the template selector.
+
+Make sure the active template label and description update correctly.
+
+Do not remove:
+
+- Cube Swarm
+- Laser Lattice
+- Wireframe Bloom
+- Fibonacci Spiral
+- Sacred Geometry Bloom
+
+Do not re-add:
+
+- Particle Field
+- Orbital Swarm
+- Pulse Tunnel
+- Polyhedron Storm
+- Lissajous Lattice
+- Smiling Face Emitter
+- Mushroom Pulse
+- Reactive Eye
+
+CORE PRODUCT RULES
+
+Every template must remain visually strong when audio is paused.
+
+All templates must still follow the audio-reactive principle:
+
+- individual elements react differently
+- elements have different Low, Mid, and High affinities
+- the complete scene should not scale as one object
+- the complete scene should not rotate as one object
+- the complete canvas should not flash as the main reaction
+- at 0% influence, that band has no visual effect
+- resting animation continues when all influence values are 0%
+
+AUDIO BANDS
+
+Continue using the existing three-band system:
+
+Low:
+20 Hz to 250 Hz
+
+Mid:
+250 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+Do not change audio analysis logic unless required for typing or integration.
+
+KALEIDOSCOPE
+
+Both new templates must work with:
+
+- Kaleidoscope off
+- Kaleidoscope on
+- segment changes
+- kaleidoscope rotation on/off
+- rotation speed changes
+- rotation direction changes
+
+Golden Galaxy should look especially strong in Kaleidoscope.
+
+Wireframe Core should remain clean and readable in Kaleidoscope.
+
+RECORDING
+
+Both new templates must work with:
+
+- uploaded track mode
+- live input mode
+- MP4 recording
+- WebM recording
+- 720p
+- 1080p
+- 4K
+- landscape
+- portrait
+- square
+- live control changes during recording
+
+Recording must still capture the existing persistent renderer canvas.
+
+Do not create a second canvas.
+
+Do not replace the renderer canvas.
+
+Do not restart MediaRecorder when switching to or from the new templates during recording.
+
+PERFORMANCE
+
+Use efficient rendering.
+
+Requirements:
+
+- Medium density should be smooth on an ordinary laptop
+- High density should remain usable
+- avoid heavy per-frame allocations
+- avoid one mesh per star or one mesh per tiny edge
+- avoid React state updates inside requestAnimationFrame
+- avoid new renderers, scenes, cameras, canvases, or animation loops
+- dispose resources cleanly when switching templates
+
+CLEANUP
+
+Each new template must dispose of all owned resources:
+
+- geometries
+- materials
+- textures if any
+- internal buffers or helper objects where relevant
+
+Repeated switching between all templates must not create:
+
+- duplicate roots
+- duplicate canvases
+- duplicate renderers
+- duplicate animation loops
+- stale scene objects
+- WebGL context errors
+- memory leaks
+
+VALIDATION
+
+Test all of the following:
+
+1. Confirm existing five templates still work.
+2. Confirm Golden Galaxy appears in the selector.
+3. Confirm Wireframe Core appears in the selector.
+4. With music paused, confirm Golden Galaxy looks like a spiral galaxy, not a random particle cloud.
+5. With music paused, confirm Wireframe Core looks like a simple nested geometric wireframe object.
+6. Confirm Wireframe Core is not overly complex and does not look like a cathedral or corridor.
+7. Confirm Golden Galaxy has visible depth and space-travel style movement.
+8. Confirm Wireframe Core has layered motion and clean structure.
+9. Test Low at 200% with Mid and High at 0% on both new templates.
+10. Test Mid at 200% with Low and High at 0% on both new templates.
+11. Test High at 200% with Low and Mid at 0% on both new templates.
+12. Confirm individual elements react, not the whole scene.
+13. Toggle Kaleidoscope on both new templates.
+14. Test Kaleidoscope rotation on both new templates.
+15. Record a short MP4 if supported.
+16. Record a short WebM.
+17. Confirm recordings contain the correct new template.
+18. Test at least one short 4K recording.
+19. Test uploaded track mode.
+20. Test live input mode.
+21. Switch templates during recording and confirm recording continues.
+22. Confirm there is still one visible renderer canvas.
+23. Confirm no runtime errors or WebGL errors.
+24. Run TypeScript checks.
+25. Fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- which templates were added
+- how Golden Galaxy is constructed
+- how Golden Galaxy creates spiral arms, stars, dust, and depth movement
+- how Wireframe Core is constructed
+- how Wireframe Core creates nested simple geometric depth
+- how Low, Mid, and High affect each new template
+- how Kaleidoscope and recording remain compatible
+- how resources are cleaned up
