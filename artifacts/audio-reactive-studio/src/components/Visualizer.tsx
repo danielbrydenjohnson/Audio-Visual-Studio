@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import {
   type VisualizerSettings,
@@ -6,6 +6,7 @@ import {
   type PaletteName,
 } from "@/types/visualizer";
 import type { VisualTemplateId } from "@/visuals/types";
+import type { AnalysisFrame } from "@/lib/audioAnalysis";
 import {
   type TemplateRuntime,
   type AudioLevels,
@@ -15,10 +16,13 @@ import {
 import { getTemplate } from "@/visuals/registry";
 
 export interface VisualizerProps {
-  /** Live raw frequency band values (0–100). */
-  low:  number;
-  mid:  number;
-  high: number;
+  /**
+   * Live analysis frame — a mutable ref updated every animation frame by the
+   * active analysis hook. Each band carries {level, hit} (both 0–100). The
+   * render loop reads it directly each frame so hits stay crisp at full frame
+   * rate (React prop updates would quantise them to ~30 Hz).
+   */
+  audioFrame: RefObject<AnalysisFrame>;
   /** Per-band influence percentages (0–200). */
   settings: VisualizerSettings;
   /**
@@ -51,6 +55,11 @@ export interface VisualizerProps {
 // Fast attack / slow release smoothing so reactions snap in and fade out.
 const SMOOTHING_ATTACK  = 0.35;
 const SMOOTHING_RELEASE = 0.055;
+// Hit signals pass through with INSTANT attack (the engine's envelope already
+// shapes the rise — extra smoothing here would blunt the transients); only
+// downward motion is eased slightly (τ ≈ 60 ms) so a pause / source stop fades
+// hit reactions out instead of hard-snapping them to zero.
+const HIT_RELEASE_TAU_S = 0.06;
 
 // Performance warning thresholds. Sustained render FPS below a fraction of the
 // SELECTED target fps across several one-second windows raises a warning; a
@@ -137,7 +146,7 @@ const POST_FRAGMENT = /* glsl */ `
  * capture stream are never interrupted.
  */
 export function Visualizer({
-  low, mid, high, settings, visualSettings, templateId,
+  audioFrame, settings, visualSettings, templateId,
   outputWidth, outputHeight, frameRate,
   onCanvasReady, onPerformanceWarning,
 }: VisualizerProps) {
@@ -147,9 +156,7 @@ export function Visualizer({
   // Read callbacks / props through refs so the single-run effect never restarts.
   const onCanvasReadyRef        = useRef(onCanvasReady);
   const onPerformanceWarningRef = useRef(onPerformanceWarning);
-  const lowRef                  = useRef(low);
-  const midRef                  = useRef(mid);
-  const highRef                 = useRef(high);
+  const audioFrameRef           = useRef(audioFrame);
   const settingsRef             = useRef(settings);
   const visualSettingsRef       = useRef(visualSettings);
   const templateIdRef           = useRef(templateId);
@@ -159,9 +166,7 @@ export function Visualizer({
 
   onCanvasReadyRef.current        = onCanvasReady;
   onPerformanceWarningRef.current = onPerformanceWarning;
-  lowRef.current                  = low;
-  midRef.current                  = mid;
-  highRef.current                 = high;
+  audioFrameRef.current           = audioFrame;
   settingsRef.current             = settings;
   visualSettingsRef.current       = visualSettings;
   templateIdRef.current           = templateId;
@@ -319,6 +324,9 @@ export function Visualizer({
     let smoothedLow  = 0;
     let smoothedMid  = 0;
     let smoothedHigh = 0;
+    let hitLow  = 0;
+    let hitMid  = 0;
+    let hitHigh = 0;
     let lastPalette: PaletteName = visualSettingsRef.current.palette;
     let lastDepth = visualSettingsRef.current.depth;
     let lastOutputW = outputWRef.current;
@@ -333,7 +341,7 @@ export function Visualizer({
     // Radians/second at 100 % speed — visibly clear but not overwhelming.
     const K_BASE_RATE = 0.5;
     // Reused each frame to avoid per-frame object allocation.
-    const audioLevels: AudioLevels = { low: 0, mid: 0, high: 0 };
+    const audioLevels: AudioLevels = { low: 0, mid: 0, high: 0, lowHit: 0, midHit: 0, highHit: 0 };
 
     // FPS sampling for the debounced performance warning (no per-frame renders).
     let fpsWindowStart  = lastTime;
@@ -386,29 +394,46 @@ export function Visualizer({
         shared.uColorC.value.set(c);
       }
 
-      // Smooth each raw band toward its influence-scaled target.
-      const tLow  = Math.min(1, Math.max(0, lowRef.current  / 100)) * (s.low  / 100);
-      const tMid  = Math.min(1, Math.max(0, midRef.current  / 100)) * (s.mid  / 100);
-      const tHigh = Math.min(1, Math.max(0, highRef.current / 100)) * (s.high / 100);
-      smoothedLow  = expSmooth(smoothedLow,  tLow);
-      smoothedMid  = expSmooth(smoothedMid,  tMid);
-      smoothedHigh = expSmooth(smoothedHigh, tHigh);
-
-      shared.uLow.value         = smoothedLow;
-      shared.uMid.value         = smoothedMid;
-      shared.uHigh.value        = smoothedHigh;
-      shared.uSpeed.value       = vs.speed / 100;
-      shared.uElementSize.value = vs.elementSize / 100;
-      shared.uGlow.value        = vs.glow / 100;
-
       const now = performance.now();
       const dt  = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
       shared.uTime.value += dt;
 
-      audioLevels.low  = smoothedLow;
-      audioLevels.mid  = smoothedMid;
-      audioLevels.high = smoothedHigh;
+      // Influence scaling applies to BOTH signals of a band: at 0 % the band
+      // has no effect at all (level and hit alike); at 200 % both are doubled.
+      const frame = audioFrameRef.current.current;
+      const tLow  = Math.min(1, Math.max(0, frame.low.level  / 100)) * (s.low  / 100);
+      const tMid  = Math.min(1, Math.max(0, frame.mid.level  / 100)) * (s.mid  / 100);
+      const tHigh = Math.min(1, Math.max(0, frame.high.level / 100)) * (s.high / 100);
+      smoothedLow  = expSmooth(smoothedLow,  tLow);
+      smoothedMid  = expSmooth(smoothedMid,  tMid);
+      smoothedHigh = expSmooth(smoothedHigh, tHigh);
+
+      // Hits: instant attack, eased release (see HIT_RELEASE_TAU_S above).
+      const tLowHit  = Math.min(1, Math.max(0, frame.low.hit  / 100)) * (s.low  / 100);
+      const tMidHit  = Math.min(1, Math.max(0, frame.mid.hit  / 100)) * (s.mid  / 100);
+      const tHighHit = Math.min(1, Math.max(0, frame.high.hit / 100)) * (s.high / 100);
+      const hitRel = 1 - Math.exp(-dt / HIT_RELEASE_TAU_S);
+      hitLow  = tLowHit  >= hitLow  ? tLowHit  : hitLow  + (tLowHit  - hitLow)  * hitRel;
+      hitMid  = tMidHit  >= hitMid  ? tMidHit  : hitMid  + (tMidHit  - hitMid)  * hitRel;
+      hitHigh = tHighHit >= hitHigh ? tHighHit : hitHigh + (tHighHit - hitHigh) * hitRel;
+
+      shared.uLow.value         = smoothedLow;
+      shared.uMid.value         = smoothedMid;
+      shared.uHigh.value        = smoothedHigh;
+      shared.uLowHit.value      = hitLow;
+      shared.uMidHit.value      = hitMid;
+      shared.uHighHit.value     = hitHigh;
+      shared.uSpeed.value       = vs.speed / 100;
+      shared.uElementSize.value = vs.elementSize / 100;
+      shared.uGlow.value        = vs.glow / 100;
+
+      audioLevels.low     = smoothedLow;
+      audioLevels.mid     = smoothedMid;
+      audioLevels.high    = smoothedHigh;
+      audioLevels.lowHit  = hitLow;
+      audioLevels.midHit  = hitMid;
+      audioLevels.highHit = hitHigh;
       runtime.onFrame?.(shared.uTime.value, dt, audioLevels);
 
       // Single composite path for BOTH modes: render the scene into the render

@@ -35,6 +35,13 @@ import { DENSITY_COUNTS } from "@/types/visualizer";
  *          inner and outer arm sections bend differently (waves along the arms)
  *   HIGH → a changing subset of high-tuned nodes sparkles at the arm beads/tips
  *
+ * Hit envelopes (transients) on top, per node (arms follow automatically since
+ * line endpoints share the same displacement):
+ *
+ *   LOW hit  → a static ~55 % subset of nodes punches outward + size pop
+ *   MID hit  → a sharper, faster twist wave races along the arms
+ *   HIGH hit → fast-reshuffling sparkle subset (~24 Hz) on the beads
+ *
  * At 0% influence every node still drifts on its own phase/speed, so the spiral
  * is always gently alive.
  */
@@ -55,6 +62,9 @@ const DISPLACE_FN = /* glsl */ `
     float low  = uLow  * aff.x;
     float mid  = uMid  * aff.y;
     float high = uHigh * aff.z;
+    float lowHit  = uLowHit  * aff.x;
+    float midHit  = uMidHit  * aff.y;
+    float highHit = uHighHit * aff.z;
 
     vec3 p = basePos;
 
@@ -69,18 +79,25 @@ const DISPLACE_FN = /* glsl */ `
     // MID: local twist about the spiral axis; the angle depends on this node's own
     // radius, so inner and outer arm sections bend by different amounts (waves
     // travel along the arms) rather than the whole spiral spinning as one.
-    float twist = sin(radius * 0.14 + uTime * 1.3 + phase) * mid * 0.6;
+    // MID hits add a sharper, faster wave that races along the arms briefly.
+    float twist = sin(radius * 0.14 + uTime * 1.3 + phase) * mid * 0.6
+                + sin(radius * 0.30 - uTime * 2.4 + phase * 2.0) * midHit * 0.4;
     float cs = cos(twist), sn = sin(twist);
     p.xy = mat2(cs, -sn, sn, cs) * p.xy;
 
-    // LOW: push outward along this node's own spiral radial + gentle forward swell.
-    p.xy += radial * low * (uVolume.x * 0.10);
-    p.z  += low * (uVolume.z * 0.10);
+    // LOW: push outward along this node's own spiral radial + gentle forward
+    // swell. LOW hits punch a static ~55 % subset of nodes further out for an
+    // instant (the arms ripple, never the whole disc as one).
+    float lowGate = step(0.45, fract(seed * 0.731));
+    p.xy += radial * (low * (uVolume.x * 0.10) + lowHit * lowGate * (uVolume.x * 0.07));
+    p.z  += low * (uVolume.z * 0.10) + lowHit * lowGate * (uVolume.z * 0.05);
 
     // HIGH: sparkle among a changing subset (own seed + speed decorrelates them).
+    // HIGH hits light an independent, fast-reshuffling subset (~24 Hz).
     float tw = fract(sin(seed * 91.17 + uTime * (5.0 + moveSpeed * 6.0)) * 43758.5453);
-    outSparkle = high * step(0.68, tw);
-    outLow = low;
+    float twHit = fract(sin(seed * 23.7 + floor(uTime * 24.0) * 11.3) * 43758.5453);
+    outSparkle = high * step(0.68, tw) + highHit * step(0.58, twHit);
+    outLow = low + lowHit * lowGate * 0.8; // size/brightness pop rides the low path
     outMid = mid;
     return p;
   }

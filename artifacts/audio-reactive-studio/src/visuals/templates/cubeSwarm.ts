@@ -21,13 +21,22 @@ import type { DensityLevel } from "@/types/visualizer";
  *   MID  → mid-affinity cubes tumble faster + drift on curved local paths
  *   HIGH → a changing subset flickers brighter + snaps into sharp extra rotation
  *
+ * Hit envelopes (transients) act on top, always per-cube and bounded:
+ *
+ *   LOW hit  → a static ~half subset jumps further along its velocity + a scale punch
+ *   MID hit  → per-cube angular-velocity burst (accumulated, so no back-rotation)
+ *   HIGH hit → fast-changing subset (~24 Hz reshuffle) glints bright with a size pop
+ *
  * Lambert shading + lights make the cubes read as solid 3D geometry (not sprites).
- * The whole swarm never scales or rotates as one object.
+ * The whole swarm never scales or rotates as one object, and no hit ever
+ * flashes the full scene.
  */
 
 const COUNTS: Record<DensityLevel, number> = { low: 250, medium: 600, high: 1000 };
 
 function fract(x: number): number { return x - Math.floor(x); }
+
+const TAU = Math.PI * 2;
 
 function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
   const count = COUNTS[density];
@@ -52,6 +61,10 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
   const seed  = new Float32Array(count);
   const phase = new Float32Array(count);
   const cmix  = new Float32Array(count);
+  /** Static gate: which cubes respond to LOW hits with a velocity jump (~55 %). */
+  const gateLow = new Float32Array(count);
+  /** Accumulated MID-hit tumble angle per cube (angular-velocity burst). */
+  const hitSpin = new Float32Array(count);
   const baseColor = new Float32Array(count * 3); // palette colour per cube
 
   for (let i = 0; i < count; i++) {
@@ -74,6 +87,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
     seed[i]  = rand(0, 1000);
     phase[i] = rand(0, Math.PI * 2);
     cmix[i]  = Math.random();
+    gateLow[i] = Math.random() < 0.55 ? 1 : 0;
     const [l, m, h] = randomAffinities();
     lowAff[i] = l; midAff[i] = m; highAff[i] = h;
   }
@@ -115,10 +129,13 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
 
   return {
     root,
-    onFrame(time, _dt, audio) {
+    onFrame(time, dt, audio) {
       const speed = shared.uSpeed.value;
       const esize = shared.uElementSize.value;
       const glow  = shared.uGlow.value;
+      // High-hit glints reshuffle their subset ~24×/s so repeated hits land on
+      // different cubes instead of strobing the same ones.
+      const glintSlot = Math.floor(time * 24);
 
       // Recompute palette colours only when the palette actually changes.
       const hexA = shared.uColorA.value.getHex();
@@ -133,16 +150,23 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const lowR  = audio.low  * lowAff[i];
         const midR  = audio.mid  * midAff[i];
         const highR = audio.high * highAff[i];
+        // Hit reactions weight by the same per-cube affinities, so the influence
+        // sliders scale level and hit responses together.
+        const lowHitR  = audio.lowHit  * lowAff[i]  * gateLow[i];
+        const midHitR  = audio.midHit  * midAff[i];
+        const highHitR = audio.highHit * highAff[i];
 
         // Base drift, wrapped independently per axis (each cube on its own path).
         let px = wrap(baseX[i] + velX[i] * time * speed, hw);
         let py = wrap(baseY[i] + velY[i] * time * speed, hh);
         let pz = wrap(baseZ[i] + velZ[i] * time * speed, hd);
 
-        // LOW: short impulse along this cube's own velocity direction.
-        if (lowR > 0.0001) {
+        // LOW: short impulse along this cube's own velocity direction — the
+        // sustained level pushes gently, a kick hit shoves the gated subset
+        // harder for an instant and eases back with the envelope.
+        if (lowR > 0.0001 || lowHitR > 0.0001) {
           velDir.set(velX[i], velY[i], velZ[i]).normalize();
-          const imp = lowR * 9.0;
+          const imp = lowR * 9.0 + lowHitR * 14.0;
           px += velDir.x * imp;
           py += velDir.y * imp;
           pz += velDir.z * imp;
@@ -160,23 +184,38 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const tw = fract(Math.sin(seed[i] * 91.17 + time * (5.0 + rotSX[i])) * 43758.5453);
         const flick = highR * (tw > 0.7 ? 1 : 0);
 
+        // HIGH hit: an independent, fast-reshuffling subset glints on transients.
+        const twHit = fract(Math.sin(seed[i] * 13.7 + glintSlot * 17.31) * 43758.5453);
+        const glint = highHitR * (twHit > 0.6 ? 1 : 0);
+
+        // MID hit: angular-velocity burst — integrates into a per-cube angle so
+        // cubes briefly tumble FASTER on the transient, then keep their new
+        // orientation (no rubber-band back-rotation).
+        if (midHitR > 0.0001) {
+          hitSpin[i] = (hitSpin[i] + midHitR * dt * 9.0) % TAU;
+        }
+
         // Per-cube tumbling; MID speeds it up, HIGH adds a sharp snap.
         const rs = speed * (1 + midR * 1.6);
+        const spinDirX = rotSX[i] < 0 ? -1 : 1;
+        const spinDirY = rotSY[i] < 0 ? -1 : 1;
         dummy.rotation.set(
-          rotX[i] + rotSX[i] * time * rs + flick * 2.2,
-          rotY[i] + rotSY[i] * time * rs + flick * 1.6,
+          rotX[i] + rotSX[i] * time * rs + flick * 2.2 + hitSpin[i] * spinDirX,
+          rotY[i] + rotSY[i] * time * rs + flick * 1.6 + hitSpin[i] * 0.7 * spinDirY,
           rotZ[i] + rotSZ[i] * time * rs,
         );
 
-        // LOW swells the cube; the swarm is never scaled as a whole.
-        const s = scale[i] * esize * (1 + lowR * 0.8 + flick * 0.5);
+        // LOW swells the cube (level) and punches it on kicks (hit); the swarm
+        // is never scaled as a whole. HIGH-hit glints add a small size pop.
+        const s = scale[i] * esize * (1 + lowR * 0.8 + lowHitR * 0.5 + flick * 0.5 + glint * 0.22);
         dummy.position.set(px, py, pz);
         dummy.scale.set(s, s, s);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
 
-        // Colour: palette base × brightness (glow + LOW lift + HIGH flicker).
-        const bright = 0.7 + glow * 0.7 + lowR * 0.25 + flick * 1.6;
+        // Colour: palette base × brightness (glow + LOW lift + HIGH flicker +
+        // HIGH-hit glint on its own subset).
+        const bright = 0.7 + glow * 0.7 + lowR * 0.25 + flick * 1.6 + glint * 1.8;
         tmpColor.setRGB(
           baseColor[i * 3 + 0] * bright,
           baseColor[i * 3 + 1] * bright,

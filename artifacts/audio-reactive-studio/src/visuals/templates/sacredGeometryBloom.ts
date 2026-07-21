@@ -20,10 +20,19 @@ import type { DensityLevel } from "@/types/visualizer";
  *   MID  → layers rotate about z at independent rates, phases and directions
  *   HIGH → a changing subset of layers flickers brighter with restraint
  *
+ * Hit envelopes (transients) on top, per layer:
+ *
+ *   LOW hit  → radial pulse that punches inner layers hardest (the kick blooms
+ *              outward from the centre) — never one uniform scene scale
+ *   MID hit  → rotation-rate burst, integrated per layer (keeps its new phase)
+ *   HIGH hit → fast-reshuffling subset of layers glints for an instant
+ *
  * Uses only generic geometric constructions — no copyrighted iconography.
  */
 
 const LAYERS: Record<DensityLevel, number> = { low: 6, medium: 10, high: 15 };
+
+const TAU = Math.PI * 2;
 
 /** A closed ring polyline as LineSegments (each edge = 2 verts, one draw call). */
 function ringSegments(radius: number, sides: number): THREE.BufferGeometry {
@@ -105,6 +114,8 @@ interface Layer {
   pulseAmp:  number; pulseSpeed: number; pulsePhase: number;
   seed:  number; cmix: number;
   lowAff: number; midAff: number; highAff: number;
+  /** Accumulated MID-hit rotation burst (radians, wrapped). */
+  hitRot: number;
 }
 
 function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
@@ -140,6 +151,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       pulseAmp: rand(0.06, 0.2), pulseSpeed: rand(0.3, 0.9), pulsePhase: rand(0, Math.PI * 2),
       seed: rand(0, 1000), cmix: i / Math.max(1, count - 1),
       lowAff: l, midAff: m, highAff: h,
+      hitRot: 0,
     });
     root.add(seg);
   }
@@ -149,36 +161,54 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
 
   return {
     root,
-    onFrame(time, _dt, audio) {
+    onFrame(time, dt, audio) {
       const speed = shared.uSpeed.value;
       const esize = shared.uElementSize.value;
       const glow  = shared.uGlow.value;
       const a = shared.uColorA.value, b = shared.uColorB.value, c = shared.uColorC.value;
+      // High-hit glints reshuffle which layers light up ~24×/s.
+      const glintSlot = Math.floor(time * 24);
 
       for (const L of layers) {
         const lowR  = audio.low  * L.lowAff;
         const midR  = audio.mid  * L.midAff;
         const highR = audio.high * L.highAff;
+        const lowHitR  = audio.lowHit  * L.lowAff;
+        const midHitR  = audio.midHit  * L.midAff;
+        const highHitR = audio.highHit * L.highAff;
 
         const tw = (Math.sin(L.seed + time * 3.0) * 43758.5453) % 1;
         const flick = highR * (Math.abs(tw) > 0.6 ? 1 : 0);
+        // HIGH hit: independent fast-reshuffling layer subset.
+        const twHit = Math.abs((Math.sin(L.seed * 7.7 + glintSlot * 13.13) * 43758.5453) % 1);
+        const spark = highHitR * (twHit > 0.55 ? 1 : 0);
+
+        // MID hit: rotation-rate burst, integrated per layer so it spins faster
+        // for an instant and keeps its new phase (no back-rotation).
+        if (midHitR > 0.0001) {
+          L.hitRot = (L.hitRot + midHitR * dt * 5.0) % TAU;
+        }
 
         // MID: independent rotation about z — each layer spins at its own signed
         // rate (never the group as one). Resting spin continues at 0% influence.
-        L.seg.rotation.z = L.rotPhase + time * speed * L.rotRate * (1 + midR * 2.2);
+        const rotDir = L.rotRate < 0 ? -1 : 1;
+        L.seg.rotation.z = L.rotPhase + time * speed * L.rotRate * (1 + midR * 2.2) + L.hitRot * rotDir;
 
-        // LOW: each layer breathes on its own phase (local radial pulse).
+        // LOW: each layer breathes on its own phase (local radial pulse). LOW
+        // hits punch inner layers hardest, so the kick blooms outward from the
+        // centre instead of scaling the whole scene uniformly.
         const breathe = 1 + Math.sin(time * L.pulseSpeed + L.pulsePhase) * L.pulseAmp;
-        const s = esize * breathe * (1 + lowR * 0.4 + flick * 0.18);
+        const s = esize * breathe * (1 + lowR * 0.4 + lowHitR * (0.28 + 0.27 * (1 - L.cmix)) + flick * 0.18 + spark * 0.1);
         L.seg.scale.set(s, s, s);
 
         L.seg.position.set(0, 0, Math.max(-hd, Math.min(hd, L.posZ)));
 
-        // Colour: palette base × per-layer brightness (glow + LOW + MID + HIGH).
+        // Colour: palette base × per-layer brightness (glow + LOW + MID + HIGH
+        // + hit accents on their own subsets).
         paletteMix(L.cmix, a, b, c, tmpCol);
-        const bright = 0.5 + glow * 0.7 + lowR * 0.28 + midR * 0.22 + flick * 1.4;
+        const bright = 0.5 + glow * 0.7 + lowR * 0.28 + lowHitR * 0.3 + midR * 0.22 + flick * 1.4 + spark * 1.6;
         L.mat.color.setRGB(tmpCol.r * bright, tmpCol.g * bright, tmpCol.b * bright);
-        L.mat.opacity = Math.min(1, 0.45 + lowR * 0.3 + flick * 0.5 + glow * 0.2);
+        L.mat.opacity = Math.min(1, 0.45 + lowR * 0.3 + lowHitR * 0.25 + flick * 0.5 + spark * 0.45 + glow * 0.2);
       }
     },
     onFraming(_nw, _nh, nd) {

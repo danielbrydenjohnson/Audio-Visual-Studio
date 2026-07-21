@@ -42,6 +42,9 @@ export interface SharedUniforms {
   uLow:         { value: number };
   uMid:         { value: number };
   uHigh:        { value: number };
+  uLowHit:      { value: number };
+  uMidHit:      { value: number };
+  uHighHit:     { value: number };
   uGlow:        { value: number };
   uVolume:      { value: THREE.Vector3 };
   uColorA:      { value: THREE.Color };
@@ -62,6 +65,9 @@ export function createSharedUniforms(
     uLow:         { value: 0 },
     uMid:         { value: 0 },
     uHigh:        { value: 0 },
+    uLowHit:      { value: 0 },
+    uMidHit:      { value: 0 },
+    uHighHit:     { value: 0 },
     uGlow:        { value: visual.glow / 100 },
     uVolume:      { value: new THREE.Vector3(halfW, halfH, halfD) },
     uColorA:      { value: new THREE.Color(a) },
@@ -72,10 +78,25 @@ export function createSharedUniforms(
 
 // ─── Template contract ────────────────────────────────────────────────────────
 
+/**
+ * Per-frame audio signals handed to CPU-driven templates. All values are
+ * influence-scaled to 0–~2 (0 = influence slider at 0 %, 1 = full meter at
+ * 100 % influence, 2 = full meter at 200 %).
+ *
+ *   low/mid/high          — sustained band LEVELS (renderer-smoothed). These are
+ *                           the legacy names — existing reactions keep reading
+ *                           them unchanged.
+ *   lowHit/midHit/highHit — transient HIT envelopes (sharp attack, smooth
+ *                           decay). Use for punches, bursts, glints — never for
+ *                           whole-scene flashes.
+ */
 export interface AudioLevels {
-  low:  number; // smoothed, influence-scaled 0–~2
-  mid:  number;
-  high: number;
+  low:     number;
+  mid:     number;
+  high:    number;
+  lowHit:  number;
+  midHit:  number;
+  highHit: number;
 }
 
 export interface TemplateCreateArgs {
@@ -120,6 +141,9 @@ export const GLSL_HEADER = /* glsl */ `
   uniform float uLow;
   uniform float uMid;
   uniform float uHigh;
+  uniform float uLowHit;
+  uniform float uMidHit;
+  uniform float uHighHit;
   uniform float uGlow;
   uniform vec3  uVolume;
   uniform vec3  uColorA;

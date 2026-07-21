@@ -22,6 +22,13 @@ import type { DensityLevel } from "@/types/visualizer";
  *          since reliable WebGL line width isn't available)
  *   MID  → per-segment endpoint bend / local directional waves (no global rotation)
  *   HIGH → a changing subset flashes + gets a brief forward length streak
+ *
+ * Hit envelopes (transients) on top, always per-segment:
+ *
+ *   LOW hit  → all segments pulse brighter/longer; a static ~half subset also
+ *              surges forward through depth for an instant
+ *   MID hit  → sharp higher-frequency kink in the bend direction (local snap)
+ *   HIGH hit → fast-reshuffling subset (~24 Hz) flickers hard with a tip streak
  */
 
 const COUNTS: Record<DensityLevel, number> = { low: 300, medium: 800, high: 1500 };
@@ -41,29 +48,45 @@ const VERTEX_BODY = /* glsl */ `
     float low  = uLow  * aAff.x;
     float mid  = uMid  * aAff.y;
     float high = uHigh * aAff.z;
+    float lowHit  = uLowHit  * aAff.x;
+    float midHit  = uMidHit  * aAff.y;
+    float highHit = uHighHit * aAff.z;
 
     float halfLen = uVolume.z;
 
     // Midpoint drifts toward the camera (+z) and wraps in depth. LOW accelerates.
+    // LOW hits surge a static ~half subset forward for an instant — the envelope
+    // eases the surge back out, so layers snap on the kick and settle after.
     vec3 m = position;
     m.z += uTime * (7.0 + aFwd * 15.0) * uSpeed;
     m.z += low * (12.0 + aFwd * 24.0);
+    float surgeGate = step(0.5, fract(seed * 0.517));
+    m.z += lowHit * surgeGate * (7.0 + aFwd * 12.0);
     m.z = mod(m.z + halfLen, 2.0 * halfLen) - halfLen;
 
-    // Length grows with LOW; Element Size scales base length / intensity.
-    float len = aLen * (0.55 + uElementSize * 0.9) * (1.0 + low * 1.0);
+    // Length grows with LOW level; LOW hits pulse it (longer reads as thicker
+    // under additive glow, the closest thing to line width WebGL offers).
+    float len = aLen * (0.55 + uElementSize * 0.9) * (1.0 + low * 1.0 + lowHit * 0.45);
 
-    // Direction bends with MID (endpoint movement / local waves).
+    // Direction bends with MID (endpoint movement / local waves); MID hits add
+    // a sharper, higher-frequency kink that snaps in and eases out.
     vec3 dir = normalize(aDir + vec3(
       sin(aPhase + uTime * 1.3),
       cos(aPhase * 1.2 + uTime * 1.1),
       sin(aPhase * 0.7 + uTime * 1.5)
-    ) * mid * 0.7 + vec3(0.0001));
+    ) * mid * 0.7 + vec3(
+      sin(aPhase * 3.1 + m.z * 0.22),
+      cos(aPhase * 2.3 - m.z * 0.19),
+      0.0
+    ) * midHit * 0.8 + vec3(0.0001));
 
     // HIGH: changing subset flashes + brief forward length streak.
     float tw = fract(sin(seed * 91.17 + uTime * (6.0 + aFwd * 6.0)) * 43758.5453);
     float flash = high * step(0.62, tw);
-    len += flash * aLen * 1.4;
+    // HIGH hit: independent fast-reshuffling subset (~24 Hz) for sharp flicker.
+    float twHit = fract(sin(seed * 57.3 + floor(uTime * 24.0) * 13.7) * 43758.5453);
+    float flashHit = highHit * step(0.6, twHit);
+    len += flash * aLen * 1.4 + flashHit * aLen * 0.8;
 
     vec3 p = m + dir * (aEnd * len);
 
@@ -77,10 +100,12 @@ const VERTEX_BODY = /* glsl */ `
     col *= (0.45 + depthF * 0.75);
     col *= baseBright;
     col += col * mid * 0.5;        // MID adds energy
+    col *= (1.0 + lowHit * 0.55);  // LOW hit: brightness pulse on the kick
     col += vec3(flash) * 0.9;      // HIGH flash
+    col += vec3(flashHit) * 1.0;   // HIGH hit: sharp flicker subset
     col *= (0.75 + uGlow * 0.9);   // Glow lifts overall brightness
     vColor = col;
-    vOpacity = clamp(0.4 * depthF + low * 0.35 + flash * 0.85 + mid * 0.15, 0.0, 1.0);
+    vOpacity = clamp(0.4 * depthF + low * 0.35 + lowHit * 0.4 + flash * 0.85 + flashHit * 0.6 + mid * 0.15, 0.0, 1.0);
   }
 `;
 

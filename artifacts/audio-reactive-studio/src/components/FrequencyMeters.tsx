@@ -1,7 +1,7 @@
-import type { FrequencyBands } from "@/hooks/useFrequencyAnalysis";
+import type { AnalysisFrame } from "@/lib/audioAnalysis";
 
 interface MeterConfig {
-  key: keyof FrequencyBands;
+  key: keyof AnalysisFrame;
   label: string;
   range: string;
   colorClass: string;
@@ -14,30 +14,50 @@ const METERS: MeterConfig[] = [
 ];
 
 interface FrequencyMetersProps {
-  bands: FrequencyBands;
+  bands: AnalysisFrame;
 }
 
+/**
+ * Per-band twin meters: LVL (sustained energy, band colour) and HIT (onset
+ * envelope, white). The hit value is peak-held by the analysis hooks between
+ * React emissions so even one-frame transients register as visible spikes.
+ */
 export function FrequencyMeters({ bands }: FrequencyMetersProps) {
   return (
     <div className="flex items-end gap-4 w-full">
       {METERS.map(({ key, label, range, colorClass }) => {
-        const value = Math.round(bands[key]);
+        const level = Math.round(bands[key].level);
+        const hit   = Math.round(bands[key].hit);
         return (
           <div key={key} className="flex flex-col items-center gap-1.5 flex-1">
             <span className="text-[10px] font-mono font-medium text-foreground/70 uppercase tracking-wider">
               {label}
             </span>
 
-            <div className="relative w-full h-10 bg-muted/30 rounded-sm overflow-hidden">
-              <div
-                className={`absolute bottom-0 left-0 right-0 rounded-sm ${colorClass} opacity-80 transition-[height] duration-[60ms] ease-out`}
-                style={{ height: `${value}%` }}
-              />
+            <div className="flex w-full gap-1">
+              <div className="relative flex-1 h-10 bg-muted/30 rounded-sm overflow-hidden">
+                <div
+                  className={`absolute bottom-0 left-0 right-0 rounded-sm ${colorClass} opacity-80 transition-[height] duration-[60ms] ease-out`}
+                  style={{ height: `${level}%` }}
+                />
+              </div>
+              <div className="relative flex-1 h-10 bg-muted/30 rounded-sm overflow-hidden">
+                <div
+                  className="absolute bottom-0 left-0 right-0 rounded-sm bg-foreground opacity-90 transition-[height] duration-[40ms] ease-out"
+                  style={{ height: `${hit}%` }}
+                />
+              </div>
             </div>
 
-            <span className="text-[10px] font-mono tabular-nums text-muted-foreground w-6 text-center">
-              {value}
-            </span>
+            <div className="flex w-full gap-1 text-[8px] font-mono text-muted-foreground/50 uppercase">
+              <span className="flex-1 text-center">Lvl</span>
+              <span className="flex-1 text-center">Hit</span>
+            </div>
+
+            <div className="flex w-full gap-1 text-[10px] font-mono tabular-nums">
+              <span className="flex-1 text-center text-muted-foreground">{level}</span>
+              <span className="flex-1 text-center text-foreground/80">{hit}</span>
+            </div>
 
             <span className="text-[9px] font-mono text-muted-foreground/50 whitespace-nowrap">
               {range}

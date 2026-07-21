@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect, useCallback, type RefObject } from "react";
 import {
-  type FrequencyBands,
-  ZERO_BANDS,
+  type AnalysisFrame,
+  type HitResponseSettings,
+  BandAnalysisEngine,
+  makeZeroFrame,
+  zeroFrame,
   FFT_SIZE,
   SMOOTHING,
-  computeBands,
 } from "@/lib/audioAnalysis";
 
-// Re-exported so existing importers (FrequencyMeters, etc.) keep working while
-// the band model itself lives in the shared analysis utility.
-export type { FrequencyBands } from "@/lib/audioAnalysis";
+// Re-exported so existing importers keep working while the band model itself
+// lives in the shared analysis utility.
+export type { AnalysisFrame } from "@/lib/audioAnalysis";
 
 // ─── Module-level registry ────────────────────────────────────────────────────
 /**
@@ -57,7 +59,18 @@ export interface AudioGraphHandle {
 }
 
 export interface FrequencyAnalysis {
-  bands: FrequencyBands;
+  /**
+   * ~30 Hz React snapshot for the meters. `level` is the current smoothed
+   * value; `hit` is the PEAK hit seen since the previous emission so short
+   * transients can't fall between state updates.
+   */
+  bands: AnalysisFrame;
+  /**
+   * Mutable frame updated every animation frame (~60 Hz). The renderer reads
+   * this directly each frame so hits stay crisp without React re-render churn.
+   * The object identity is stable for the lifetime of the hook.
+   */
+  frame: RefObject<AnalysisFrame>;
   /**
    * Ensure the audio graph exists and return its context + recording stream.
    * Reuses the existing WeakMap-guarded graph — never builds a second source.
@@ -69,31 +82,49 @@ export interface FrequencyAnalysis {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
- * Connects the supplied audio element to a Web Audio analyser and returns
- * live per-band energy values (0–100) updated every animation frame.
+ * Connects the supplied audio element to a Web Audio analyser and returns live
+ * per-band {level, hit} signals (each 0–100) updated every animation frame.
  *
- * When playback pauses the bands are reset to zero so downstream smoothing can
- * fade audio reactions naturally back to rest.
+ * When playback pauses the frame is zeroed and the engine reset so downstream
+ * smoothing fades reactions naturally back to rest (and no stale spectrum
+ * leaks into the next play).
  */
 export function useFrequencyAnalysis(
-  audioRef:  RefObject<HTMLAudioElement | null>,
-  isPlaying: boolean,
+  audioRef:    RefObject<HTMLAudioElement | null>,
+  isPlaying:   boolean,
+  hitResponse: HitResponseSettings,
 ): FrequencyAnalysis {
-  const [bands, setBands] = useState<FrequencyBands>(ZERO_BANDS);
+  const [bands, setBands] = useState<AnalysisFrame>(makeZeroFrame);
 
   const ctxRef      = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode  | null>(null);
   const rafRef      = useRef<number        | null>(null);
   const dataRef     = useRef<Uint8Array<ArrayBuffer> | null>(null);
 
+  // Engine + per-frame output live in refs so the analyser effect never has to
+  // restart when hit settings change — the tick reads hitRef.current live.
+  const engineRef = useRef<BandAnalysisEngine | null>(null);
+  if (engineRef.current === null) engineRef.current = new BandAnalysisEngine();
+  const frameRef = useRef<AnalysisFrame | null>(null);
+  if (frameRef.current === null) frameRef.current = makeZeroFrame();
+
+  const hitRef = useRef(hitResponse);
+  hitRef.current = hitResponse;
+
   useEffect(() => {
+    const engine = engineRef.current!;
+    const frame  = frameRef.current!;
+
     if (!isPlaying) {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      // Reset to zero so the renderer's release smoothing fades reactions out.
-      setBands(ZERO_BANDS);
+      // Reset to zero so the renderer's release smoothing fades reactions out,
+      // and drop the engine's prev-spectrum/envelope state.
+      engine.reset();
+      zeroFrame(frame);
+      setBands(makeZeroFrame());
       return;
     }
 
@@ -135,18 +166,29 @@ export function useFrequencyAnalysis(
     const data     = dataRef.current;
     const binWidth = ctx.sampleRate / FFT_SIZE;
 
-    // Throttle React state emission to ~30 Hz. The <audio> analyser is read
-    // every frame for accuracy, but committing to React state 60×/s would
-    // re-render App (and every child) needlessly — the meters use a 60 ms CSS
-    // transition and the renderer applies its own per-frame smoothing, so a
-    // 30 Hz band feed is indistinguishable while halving render churn.
+    // The analyser is read EVERY animation frame (the renderer consumes the
+    // mutable frame at full rate), but React state is only committed at ~30 Hz
+    // — committing 60×/s would re-render App (and every child) needlessly.
+    // Between emissions the hit value is peak-held so a 1-frame spike is still
+    // visible on the meters.
     const EMIT_INTERVAL_MS = 33;
     let lastEmit = 0;
+    let peakLow = 0, peakMid = 0, peakHigh = 0;
 
     function tick(now: number) {
+      engine.analyse(analyser, data, binWidth, now, hitRef.current, frame);
+      if (frame.low.hit  > peakLow)  peakLow  = frame.low.hit;
+      if (frame.mid.hit  > peakMid)  peakMid  = frame.mid.hit;
+      if (frame.high.hit > peakHigh) peakHigh = frame.high.hit;
+
       if (now - lastEmit >= EMIT_INTERVAL_MS) {
         lastEmit = now;
-        setBands(computeBands(analyser, data, binWidth));
+        setBands({
+          low:  { level: frame.low.level,  hit: peakLow  },
+          mid:  { level: frame.mid.level,  hit: peakMid  },
+          high: { level: frame.high.level, hit: peakHigh },
+        });
+        peakLow = peakMid = peakHigh = 0;
       }
       rafRef.current = requestAnimationFrame(tick);
     }
@@ -183,5 +225,9 @@ export function useFrequencyAnalysis(
     return { ctx: graph.ctx, stream: graph.streamDest.stream };
   }, [audioRef]);
 
-  return { bands, ensureAudioGraph };
+  return {
+    bands,
+    frame: frameRef as RefObject<AnalysisFrame>,
+    ensureAudioGraph,
+  };
 }

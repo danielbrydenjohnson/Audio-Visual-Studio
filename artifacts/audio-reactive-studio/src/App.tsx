@@ -14,6 +14,12 @@ import {
   DEFAULT_AUDIO_SOURCE_MODE,
 } from "@/types/audioSource";
 import {
+  type HitResponseSettings,
+  type BandKey,
+  DEFAULT_HIT_RESPONSE,
+  HIT_ATTACK_MIN, HIT_ATTACK_MAX, HIT_DECAY_MIN, HIT_DECAY_MAX,
+} from "@/lib/audioAnalysis";
+import {
   type VisualizerSettings,
   type ParticleVisualSettings,
   type KaleidoscopeDirection,
@@ -104,6 +110,8 @@ const BAND_DOTS = {
   mid:  "#f59e0b",
   high: "#ec4899",
 } as const;
+
+const BAND_LABEL: Record<BandKey, string> = { low: "Low", mid: "Mid", high: "High" };
 
 // ─── ControlSlider — for visual settings ─────────────────────────────────────
 
@@ -273,6 +281,7 @@ function App() {
   const [fileName,  setFileName]  = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [settings,       setSettings]       = useState<VisualizerSettings>(DEFAULT_SETTINGS);
+  const [hitResponse,    setHitResponse]    = useState<HitResponseSettings>(DEFAULT_HIT_RESPONSE);
   const [visualSettings, setVisualSettings] = useState<ParticleVisualSettings>(DEFAULT_VISUAL_SETTINGS);
   const [templateId,     setTemplateId]     = useState<VisualTemplateId>(DEFAULT_TEMPLATE_ID);
   const [output,               setOutput]               = useState<OutputSettings>(DEFAULT_OUTPUT_SETTINGS);
@@ -293,14 +302,17 @@ function App() {
 
   // Uploaded-track analysis is gated off while in live mode so its bands fade to
   // zero and it never fights the live analyser for the meters/visuals.
-  const uploaded  = useFrequencyAnalysis(audioRef, isPlaying && !isLive);
+  const uploaded  = useFrequencyAnalysis(audioRef, isPlaying && !isLive, hitResponse);
   const liveInput = useLiveInputAnalysis({
     onUnexpectedEnd: () => { stopRecordingRef.current(); },
+    hitResponse,
   });
 
   const ensureAudioGraph = uploaded.ensureAudioGraph;
-  // The renderer + meters are source-agnostic: they only ever see Low/Mid/High.
-  const bands = isLive ? liveInput.bands : uploaded.bands;
+  // The renderer + meters are source-agnostic: they only ever see per-band
+  // {level, hit} signals, regardless of where the audio came from.
+  const bands      = isLive ? liveInput.bands : uploaded.bands;
+  const audioFrame = isLive ? liveInput.frame : uploaded.frame;
 
   // Exact recording dimensions + filename label derived from the output format.
   const outputDims  = getOutputDimensions(output.aspectRatio, output.resolution);
@@ -365,6 +377,9 @@ function App() {
   }
   function setVisual<K extends keyof ParticleVisualSettings>(key: K, value: ParticleVisualSettings[K]) {
     setVisualSettings(prev => ({ ...prev, [key]: value }));
+  }
+  function setHitParam(band: BandKey, key: "attackMs" | "decayMs", value: number) {
+    setHitResponse(prev => ({ ...prev, [band]: { ...prev[band], [key]: value } }));
   }
 
   const hasAudio = audioUrl !== null && fileName !== null;
@@ -447,9 +462,7 @@ function App() {
             }`}
           >
             <Visualizer
-              low={bands.low}
-              mid={bands.mid}
-              high={bands.high}
+              audioFrame={audioFrame}
               settings={settings}
               visualSettings={visualSettings}
               templateId={templateId}
@@ -575,6 +588,52 @@ function App() {
                 <BandSlider label="Low Influence"  dot={BAND_DOTS.low}  value={settings.low}  onChange={v => setSetting("low",  v)} />
                 <BandSlider label="Mid Influence"  dot={BAND_DOTS.mid}  value={settings.mid}  onChange={v => setSetting("mid",  v)} />
                 <BandSlider label="High Influence" dot={BAND_DOTS.high} value={settings.high} onChange={v => setSetting("high", v)} />
+              </div>
+
+              <SectionDivider />
+
+              {/* Hit Response — attack/decay of the per-band transient envelopes.
+                  Its reset touches ONLY these six values (never the influence
+                  sliders above, never visual settings). Editable at all times,
+                  including during recording. */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider">
+                    Hit Response
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setHitResponse(DEFAULT_HIT_RESPONSE)}
+                    className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
+                    title="Reset hit attack/decay to defaults (influence sliders are not affected)"
+                  >
+                    Reset Hit Response
+                  </button>
+                </div>
+                <p className="text-[10px] font-mono leading-relaxed text-muted-foreground/70">
+                  How sharply each band&apos;s hit spikes rise (attack) and how
+                  quickly they fade (decay).
+                </p>
+                {(["low", "mid", "high"] as BandKey[]).map(band => (
+                  <div key={band} className="grid grid-cols-2 gap-3">
+                    <ControlSlider
+                      label={`${BAND_LABEL[band]} Attack`}
+                      value={hitResponse[band].attackMs}
+                      min={HIT_ATTACK_MIN}
+                      max={HIT_ATTACK_MAX}
+                      unit=" ms"
+                      onChange={v => setHitParam(band, "attackMs", v)}
+                    />
+                    <ControlSlider
+                      label={`${BAND_LABEL[band]} Decay`}
+                      value={hitResponse[band].decayMs}
+                      min={HIT_DECAY_MIN}
+                      max={HIT_DECAY_MAX}
+                      unit=" ms"
+                      onChange={v => setHitParam(band, "decayMs", v)}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 

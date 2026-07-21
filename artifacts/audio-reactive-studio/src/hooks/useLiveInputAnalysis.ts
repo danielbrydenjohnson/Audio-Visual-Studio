@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
-  type FrequencyBands,
-  ZERO_BANDS,
+  type AnalysisFrame,
+  type HitResponseSettings,
+  BandAnalysisEngine,
+  DEFAULT_HIT_RESPONSE,
+  makeZeroFrame,
+  zeroFrame,
   FFT_SIZE,
   SMOOTHING,
-  computeBands,
 } from "@/lib/audioAnalysis";
 
 export type LiveInputStatus =
@@ -27,7 +30,10 @@ export interface LiveRecordingAudio {
 
 export interface LiveInputAnalysis {
   status:            LiveInputStatus;
-  bands:             FrequencyBands;
+  /** ~30 Hz snapshot for meters — `hit` is peak-held between emissions. */
+  bands:             AnalysisFrame;
+  /** Mutable per-animation-frame signals for the renderer (stable identity). */
+  frame:             RefObject<AnalysisFrame>;
   error:             string | null;
   devices:           LiveInputDevice[];
   selectedDeviceId:  string;
@@ -47,6 +53,8 @@ interface UseLiveInputArgs {
    * user-initiated stop().
    */
   onUnexpectedEnd?: () => void;
+  /** Hit envelope attack/decay settings — read live each frame via a ref. */
+  hitResponse?: HitResponseSettings;
 }
 
 // Match the uploaded-track emit cadence (~30 Hz) so both paths feel identical.
@@ -54,14 +62,14 @@ const EMIT_INTERVAL_MS = 33;
 
 /**
  * Live microphone / line-in analysis. getUserMedia → MediaStreamAudioSourceNode
- * → AnalyserNode → shared computeBands(). The mic is deliberately NEVER connected
+ * → AnalyserNode → shared BandAnalysisEngine. The mic is deliberately NEVER connected
  * to ctx.destination (that would monitor the mic to the speakers and cause
  * feedback). The same MediaStream serves both analysis and recording, so no
  * second getUserMedia call is ever made for capture.
  */
-export function useLiveInputAnalysis({ onUnexpectedEnd }: UseLiveInputArgs = {}): LiveInputAnalysis {
+export function useLiveInputAnalysis({ onUnexpectedEnd, hitResponse }: UseLiveInputArgs = {}): LiveInputAnalysis {
   const [status,           setStatus]           = useState<LiveInputStatus>("idle");
-  const [bands,            setBands]            = useState<FrequencyBands>(ZERO_BANDS);
+  const [bands,            setBands]            = useState<AnalysisFrame>(makeZeroFrame);
   const [error,            setError]            = useState<string | null>(null);
   const [devices,          setDevices]          = useState<LiveInputDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
@@ -72,6 +80,15 @@ export function useLiveInputAnalysis({ onUnexpectedEnd }: UseLiveInputArgs = {})
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataRef     = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const rafRef      = useRef<number | null>(null);
+
+  // Engine + per-frame output live in refs so changing hit settings never
+  // interrupts the live capture — the tick reads hitRef.current live.
+  const engineRef = useRef<BandAnalysisEngine | null>(null);
+  if (engineRef.current === null) engineRef.current = new BandAnalysisEngine();
+  const frameRef = useRef<AnalysisFrame | null>(null);
+  if (frameRef.current === null) frameRef.current = makeZeroFrame();
+  const hitRef = useRef(hitResponse ?? DEFAULT_HIT_RESPONSE);
+  hitRef.current = hitResponse ?? DEFAULT_HIT_RESPONSE;
 
   // True only while we are tearing the graph down ourselves, so the track
   // "ended" handler can distinguish our own stop from an unexpected disconnect.
@@ -134,7 +151,9 @@ export function useLiveInputAnalysis({ onUnexpectedEnd }: UseLiveInputArgs = {})
       // Invalidate any in-flight start() so it can't reactivate capture later.
       startIdRef.current++;
       teardownGraph();
-      setBands(ZERO_BANDS);
+      engineRef.current!.reset();
+      zeroFrame(frameRef.current!);
+      setBands(makeZeroFrame());
       if (opts?.error !== undefined) setError(opts.error);
       setStatus(opts?.status ?? "stopped");
       busyRef.current   = false;
@@ -264,11 +283,25 @@ export function useLiveInputAnalysis({ onUnexpectedEnd }: UseLiveInputArgs = {})
       // Permission is granted now, so labels are available — refresh the list.
       refreshDevices();
 
+      const engine = engineRef.current!;
+      const frame  = frameRef.current!;
+      engine.reset(); // fresh session — no stale spectrum/envelopes
       let lastEmit = 0;
+      let peakLow = 0, peakMid = 0, peakHigh = 0;
       const tick = (now: number) => {
+        engine.analyse(analyser, data, binWidth, now, hitRef.current, frame);
+        if (frame.low.hit  > peakLow)  peakLow  = frame.low.hit;
+        if (frame.mid.hit  > peakMid)  peakMid  = frame.mid.hit;
+        if (frame.high.hit > peakHigh) peakHigh = frame.high.hit;
+
         if (now - lastEmit >= EMIT_INTERVAL_MS) {
           lastEmit = now;
-          setBands(computeBands(analyser, data, binWidth));
+          setBands({
+            low:  { level: frame.low.level,  hit: peakLow  },
+            mid:  { level: frame.mid.level,  hit: peakMid  },
+            high: { level: frame.high.level, hit: peakHigh },
+          });
+          peakLow = peakMid = peakHigh = 0;
         }
         rafRef.current = requestAnimationFrame(tick);
       };
@@ -308,6 +341,7 @@ export function useLiveInputAnalysis({ onUnexpectedEnd }: UseLiveInputArgs = {})
 
   return {
     status, bands, error, devices, selectedDeviceId,
+    frame: frameRef as RefObject<AnalysisFrame>,
     isActive: status === "active",
     setSelectedDeviceId, refreshDevices, start, stop, getRecordingAudio,
   };

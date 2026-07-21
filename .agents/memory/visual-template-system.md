@@ -1,6 +1,6 @@
 ---
 name: Audio Reactive Studio — visual template system
-description: How multi-template 3D visuals share one renderer/canvas, the <=16 vertex-attribute limit, the GLSL1 uniform-array gotcha, the captureStream post-processing rule, and fixed recording resolution (DPR kept out of the buffer) with a letterboxed preview.
+description: How multi-template 3D visuals share one renderer/canvas, the <=16 vertex-attribute limit, the GLSL1 uniform-array gotcha, the captureStream post-processing rule, fixed recording resolution (DPR kept out of the buffer) with a letterboxed preview, the 60fps-frame-ref/30Hz-state audio routing, and hit-transient mapping rules.
 ---
 
 # Visual template system (Audio Reactive Studio)
@@ -123,3 +123,27 @@ template root only on ASPECT change (templates without `onFraming` won't redistr
 otherwise); resolution-only changes just resize the buffer/RT. Any perf-warning FPS
 threshold must scale to the SELECTED target fps (e.g. 75% of it), or 30 fps mode
 false-warns against a 60 fps-oriented constant.
+
+## Audio signals: 60 fps mutable frame ref + 30 Hz React state
+The analysis engine writes per-band `{level, hit}` into ONE mutable `AnalysisFrame`
+(stable identity, lazily created in a ref). The renderer reads it inside its own rAF
+via a ref-of-ref (the prop is the RefObject; a render-updated ref holds the prop).
+React `bands` state is emitted at ~30 Hz for the meters only, with hit values
+PEAK-HELD between emissions (max, not last sample) so 1-frame spikes stay visible.
+
+**Why:** pushing 60 fps audio through React state re-renders the app every frame and
+blurs 2–5 ms transients; the frame-ref path keeps hits crisp, and hit sliders stay
+editable mid-recording because settings flow through a render-updated ref (`hitRef`)
+instead of analyser-effect deps (the audio graph never restarts on tweaks).
+
+## Hit (transient) mapping rule: integrate, never scale accumulated rotation
+Rotation expressed as `angle = rate * time` must NEVER get its rate multiplied by a
+transient envelope — when the envelope decays, the angle snaps back (rubber-band
+back-rotation). Map hits as angular-velocity bursts integrated separately:
+`hitAngle = (hitAngle + hit * dt * k) % TAU`, added onto the base angle and
+sign-matched to the element's own spin direction. Scale/brightness/position punches
+may ride the raw envelope directly (easing back is the point). Keep hit reactions
+per-element: static seed gates for "some elements respond" (bass-punch subsets),
+`floor(time*24)`-hashed reshuffling subsets for sparkle/glint — never whole-root
+transforms or full-scene flashes, and independent hash constants per subset so
+level-flicker and hit-glint groups don't correlate.

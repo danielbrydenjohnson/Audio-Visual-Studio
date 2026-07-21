@@ -28,6 +28,13 @@ import type { DensityLevel } from "@/types/visualizer";
  *   HIGH → a changing subset of shells glints; corner nodes sparkle on their
  *          own changing subsets
  *
+ * Hit envelopes (transients) on top, per shell/ring:
+ *
+ *   LOW hit  → breathing punch + a deeper forward/back shove
+ *   MID hit  → angular-velocity whip folded into the accumulated angles
+ *              (each axis keeps its own spin direction — no back-rotation)
+ *   HIGH hit → fast-reshuffling edge glints + corner-node sparkles (~24 Hz)
+ *
  * All rotation angles accumulate with dt and wrap modulo 2π (no unbounded
  * floats, no React state). Efficient: EdgesGeometry line shells + one small
  * Points cloud per polyhedron shell — a handful of draw calls in total.
@@ -218,50 +225,64 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       const sp = shared.uSpeed.value, es = shared.uElementSize.value, gl = shared.uGlow.value;
       const ca = shared.uColorA.value, cb = shared.uColorB.value, cc = shared.uColorC.value;
       const depthScale = hd / 55; // Depth control widens/narrows z travel
+      // Hit glints reshuffle their subsets ~24×/s.
+      const glintSlot = Math.floor(time * 24);
 
       for (const L of layers) {
         const lowR  = audio.low  * L.lowAff;
         const midR  = audio.mid  * L.midAff;
         const highR = audio.high * L.highAff;
+        const lowHitR  = audio.lowHit  * L.lowAff;
+        const midHitR  = audio.midHit  * L.midAff;
+        const highHitR = audio.highHit * L.highAff;
 
         // HIGH: changing subset glints (edges) on this layer's own seed.
         const glint = highR * (fract(Math.sin(L.seed + time * 2.7) * 43758.5453) > 0.62 ? 1 : 0);
+        // HIGH hit: independent fast-reshuffling glint subset.
+        const glintHit = highHitR * (fract(Math.sin(L.seed * 5.3 + glintSlot * 11.7) * 43758.5453) > 0.55 ? 1 : 0);
 
-        // Independent rotation — MID whips this layer's own rate. Accumulated
-        // with dt and wrapped so nothing grows unbounded.
+        // Independent rotation — MID whips this layer's own rate; MID hits add
+        // a brief extra angular velocity along each axis' own spin direction.
+        // Both integrate into the same dt-accumulated, wrapped angles, so hits
+        // speed the twist up for an instant without any back-rotation.
         const rateBoost = 1 + midR * 2.4;
-        L.ax = (L.ax + dt * sp * L.rx * rateBoost) % TAU;
-        L.ay = (L.ay + dt * sp * L.ry * rateBoost) % TAU;
-        L.az = (L.az + dt * sp * L.rz * rateBoost) % TAU;
+        const hitWhip = midHitR * 1.5;
+        L.ax = (L.ax + dt * (sp * L.rx * rateBoost + hitWhip * Math.sign(L.rx))) % TAU;
+        L.ay = (L.ay + dt * (sp * L.ry * rateBoost + hitWhip * Math.sign(L.ry))) % TAU;
+        L.az = (L.az + dt * (sp * L.rz * rateBoost + hitWhip * Math.sign(L.rz))) % TAU;
         L.group.rotation.set(L.ax, L.ay, L.az);
 
-        // Breathe + LOW pulse (this shell only — never the root).
+        // Breathe + LOW pulse (this shell only — never the root). LOW hits
+        // punch the breathe a little harder for an instant.
         const breathe = 1 + Math.sin(time * L.breatheSpeed + L.breathePhase) * L.breatheAmp
-                          + lowR * 0.30 + glint * 0.06;
+                          + lowR * 0.30 + lowHitR * 0.22 + glint * 0.06 + glintHit * 0.05;
         L.group.scale.setScalar(L.baseScale * es * breathe);
 
         // Depth drift + LOW push forward/back; MID adds a small lateral wobble.
+        // LOW hits shove deeper along this layer's own push direction.
         const z = Math.sin(time * L.driftSpeed + L.driftPhase) * L.driftAmp * depthScale
-                + lowR * 7 * L.pushDir * depthScale;
+                + (lowR * 7 + lowHitR * 9) * L.pushDir * depthScale;
         L.group.position.set(
           Math.sin(time * L.driftSpeed * 1.3 + L.driftPhase) * midR * 2.5,
           Math.cos(time * L.driftSpeed * 1.1 + L.driftPhase) * midR * 2.5,
           Math.max(-hd * 0.8, Math.min(hd * 0.8, z)),
         );
 
-        // Edge colour/opacity.
+        // Edge colour/opacity (hit accents ride on their own subsets).
         paletteMix(L.cmix, ca, cb, cc, tmpC);
-        const eB = 0.50 + gl * 0.65 + lowR * 0.55 + midR * 0.30 + glint * 1.60;
+        const eB = 0.50 + gl * 0.65 + lowR * 0.55 + lowHitR * 0.45 + midR * 0.30 + glint * 1.60 + glintHit * 1.50;
         L.lineMat.color.setRGB(tmpC.r * eB, tmpC.g * eB, tmpC.b * eB);
-        L.lineMat.opacity = Math.min(1, 0.42 + gl * 0.22 + lowR * 0.30 + glint * 0.50);
+        L.lineMat.opacity = Math.min(1, 0.42 + gl * 0.22 + lowR * 0.30 + lowHitR * 0.25 + glint * 0.50 + glintHit * 0.45);
 
-        // Corner nodes: LOW grows them briefly, HIGH sparkles a different subset.
+        // Corner nodes: LOW grows them briefly, HIGH sparkles a different
+        // subset; HIGH hits sparkle a third, fast-reshuffling subset.
         if (L.nodeMat) {
           const nodeSpark = highR * (fract(Math.sin(L.seed * 1.7 + 9.1 + time * 4.3) * 43758.5453) > 0.55 ? 1 : 0);
-          L.nodeMat.size = Math.max(0.8, 1.6 * es * (1 + lowR * 0.55 + nodeSpark * 1.2));
-          const nB = 0.75 + gl * 0.55 + nodeSpark * 2.0 + lowR * 0.45;
+          const nodeSparkHit = highHitR * (fract(Math.sin(L.seed * 3.9 + 4.2 + glintSlot * 7.31) * 43758.5453) > 0.5 ? 1 : 0);
+          L.nodeMat.size = Math.max(0.8, 1.6 * es * (1 + lowR * 0.55 + lowHitR * 0.4 + nodeSpark * 1.2 + nodeSparkHit * 1.0));
+          const nB = 0.75 + gl * 0.55 + nodeSpark * 2.0 + nodeSparkHit * 1.8 + lowR * 0.45 + lowHitR * 0.4;
           L.nodeMat.color.setRGB(tmpC.r * nB, tmpC.g * nB, tmpC.b * nB);
-          L.nodeMat.opacity = Math.min(1, 0.55 + gl * 0.25 + nodeSpark * 0.45 + lowR * 0.25);
+          L.nodeMat.opacity = Math.min(1, 0.55 + gl * 0.25 + nodeSpark * 0.45 + nodeSparkHit * 0.4 + lowR * 0.25 + lowHitR * 0.2);
         }
       }
     },
