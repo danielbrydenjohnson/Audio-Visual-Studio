@@ -2,9 +2,13 @@ import * as THREE from "three";
 import type { PaletteName, ParticleVisualSettings, DensityLevel } from "@/types/visualizer";
 import type { VisualTemplateId } from "@/visuals/types";
 
-// Predictable colours — bypass sRGB working-space conversion so palette hex
-// values render exactly as authored under additive blending.
-THREE.ColorManagement.enabled = false;
+// Colour management ON: palette hex values are converted sRGB → linear working
+// space when set, the whole render/bloom pipeline operates in linear light
+// (HalfFloat composer targets), and the final OutputPass converts linear → sRGB
+// with ACES filmic tone mapping applied EXACTLY ONCE at the end of the chain.
+// Single colours round-trip back to their authored appearance; additive
+// accumulation and bloom now blend physically (in linear), which is the point.
+THREE.ColorManagement.enabled = true;
 
 // ─── Camera / volume constants (shared across every template) ────────────────
 export const FOV         = 60;

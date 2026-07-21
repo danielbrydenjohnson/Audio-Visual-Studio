@@ -23,6 +23,8 @@ import {
   type VisualizerSettings,
   type ParticleVisualSettings,
   type KaleidoscopeDirection,
+  type PostEffectSettings,
+  DEFAULT_POST_EFFECT_SETTINGS,
   DEFAULT_SETTINGS,
   DEFAULT_VISUAL_SETTINGS,
 } from "@/types/visualizer";
@@ -283,6 +285,7 @@ function App() {
   const [settings,       setSettings]       = useState<VisualizerSettings>(DEFAULT_SETTINGS);
   const [hitResponse,    setHitResponse]    = useState<HitResponseSettings>(DEFAULT_HIT_RESPONSE);
   const [visualSettings, setVisualSettings] = useState<ParticleVisualSettings>(DEFAULT_VISUAL_SETTINGS);
+  const [postEffects,    setPostEffects]    = useState<PostEffectSettings>(DEFAULT_POST_EFFECT_SETTINGS);
   const [templateId,     setTemplateId]     = useState<VisualTemplateId>(DEFAULT_TEMPLATE_ID);
   const [output,               setOutput]               = useState<OutputSettings>(DEFAULT_OUTPUT_SETTINGS);
   const [perfWarning,          setPerfWarning]          = useState(false);
@@ -381,6 +384,9 @@ function App() {
   function setHitParam(band: BandKey, key: "attackMs" | "decayMs", value: number) {
     setHitResponse(prev => ({ ...prev, [band]: { ...prev[band], [key]: value } }));
   }
+  function setPost<K extends keyof PostEffectSettings>(key: K, value: PostEffectSettings[K]) {
+    setPostEffects(prev => ({ ...prev, [key]: value }));
+  }
 
   const hasAudio = audioUrl !== null && fileName !== null;
   const recordingLocked = recorder.status === "recording" || recorder.status === "starting";
@@ -465,6 +471,7 @@ function App() {
               audioFrame={audioFrame}
               settings={settings}
               visualSettings={visualSettings}
+              postEffects={postEffects}
               templateId={templateId}
               outputWidth={outputDims.width}
               outputHeight={outputDims.height}
@@ -788,6 +795,77 @@ function App() {
                     />
                   </>
                 )}
+              </div>
+            </div>
+
+            {/* ── Post Effects Section ──
+                Bloom + exposure — applied by the post-processing stack after the
+                scene (and kaleidoscope) render. Separate state from visual
+                settings: Reset Post Effects restores ONLY these five values, and
+                Reset Visuals never touches them. Editable at all times, including
+                during recording (live pass-property writes, recorder untouched). */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-3 bg-chart-4/70 rounded-full" />
+                  <h3 className="text-sm font-medium text-foreground">Post Effects</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPostEffects(DEFAULT_POST_EFFECT_SETTINGS)}
+                  className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
+                  title="Reset bloom and exposure to defaults (no other settings are affected)"
+                >
+                  Reset Post Effects
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <ControlToggle
+                  label="Bloom"
+                  value={postEffects.bloomEnabled}
+                  onChange={v => setPost("bloomEnabled", v)}
+                />
+                {postEffects.bloomEnabled && (
+                  <>
+                    <ControlSlider
+                      label="Bloom Strength"
+                      value={postEffects.bloomStrength}
+                      min={0}
+                      max={3}
+                      step={0.05}
+                      unit=""
+                      onChange={v => setPost("bloomStrength", v)}
+                    />
+                    <ControlSlider
+                      label="Bloom Radius"
+                      value={postEffects.bloomRadius}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      unit=""
+                      onChange={v => setPost("bloomRadius", v)}
+                    />
+                    <ControlSlider
+                      label="Bloom Threshold"
+                      value={postEffects.bloomThreshold}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      unit=""
+                      onChange={v => setPost("bloomThreshold", v)}
+                    />
+                  </>
+                )}
+                <ControlSlider
+                  label="Exposure"
+                  value={postEffects.exposure}
+                  min={0.5}
+                  max={2}
+                  step={0.01}
+                  unit=""
+                  onChange={v => setPost("exposure", v)}
+                />
               </div>
             </div>
 

@@ -1,0 +1,411 @@
+Add a safe first version of post-processing to Audio Reactive Studio using Three.js built-in post-processing passes.
+
+The app is currently working. It has:
+
+- uploaded track mode
+- live input mode
+- Low / Mid / High level and hit analysis
+- Hit Response controls
+- geometric visual templates
+- Kaleidoscope
+- Kaleidoscope rotation controls
+- MP4/WebM recording
+- 720p, 1080p, 4K output
+- landscape, portrait, square output
+- live visual controls during recording
+
+Do not rebuild the app from scratch.
+
+GOAL
+
+Add a proper post-processing stack that improves the visual finish of every template.
+
+This first pass should add:
+
+1. Bloom
+2. Exposure / tone mapping handled correctly
+3. A clean final output pass
+
+Do not add trails yet.
+
+Do not add chromatic aberration yet.
+
+Do not add vignette yet.
+
+Do not add grain yet.
+
+Do not add pmndrs/postprocessing yet.
+
+Use the built-in Three.js examples modules only, such as:
+
+- EffectComposer
+- RenderPass
+- UnrealBloomPass
+- ShaderPass if needed for the existing Kaleidoscope shader
+- OutputPass
+
+Inspect the installed Three.js version and use the correct import paths/API for that version.
+
+IMPORTANT ARCHITECTURE RULES
+
+Preserve the existing renderer architecture:
+
+- one persistent WebGLRenderer
+- one visible renderer canvas
+- one scene
+- one camera
+- one animation loop
+- one ResizeObserver
+- one active template root
+
+Do not create:
+
+- another visible canvas
+- another renderer
+- another scene
+- another camera
+- another animation loop
+
+The final post-processed image must render to the same visible canvas currently used by the app.
+
+Recording must continue to capture that same canvas through captureStream().
+
+POST-PROCESSING ORDER
+
+Create a post-processing pipeline equivalent to:
+
+1. Render the Three.js scene with the existing camera
+2. Apply the existing Kaleidoscope effect if enabled
+3. Apply Bloom
+4. Apply final output / tone mapping / colour conversion exactly once
+
+The intended order is:
+
+RenderPass
+Optional Kaleidoscope pass
+UnrealBloomPass
+OutputPass
+
+If the existing Kaleidoscope implementation is currently a manual render-to-target shader, refactor it carefully into the composer pipeline or integrate it without changing the visual result.
+
+Kaleidoscope must remain a post-process effect.
+
+Do not rotate or transform the scene, camera, active template root, or renderer canvas to achieve Kaleidoscope.
+
+COLOUR MANAGEMENT AND TONE MAPPING
+
+This is important.
+
+Do not accidentally apply tone mapping or sRGB conversion twice.
+
+Do not accidentally skip final output conversion.
+
+With EffectComposer, route final output through OutputPass if available.
+
+Use ACES filmic tone mapping if supported by the installed Three.js version.
+
+Add an Exposure control that affects the final rendered brightness in a controlled way.
+
+Suggested default:
+
+Exposure: 1.0
+
+Suggested range:
+
+0.5 to 2.0
+
+The image should not become flat white or washed out.
+
+Bloom should glow, but highlights should still have shape.
+
+BLOOM CONTROLS
+
+Add a compact Post Effects section in the controls UI.
+
+Add:
+
+1. Bloom toggle
+- Default: On
+
+2. Bloom Strength
+- Range: 0 to 3
+- Default: 0.8
+- Show value
+
+3. Bloom Radius
+- Range: 0 to 1
+- Default: 0.35
+- Show value
+
+4. Bloom Threshold
+- Range: 0 to 1
+- Default: 0.15
+- Show value
+
+5. Exposure
+- Range: 0.5 to 2.0
+- Default: 1.0
+- Show value
+
+6. Reset Post Effects
+- Restores only post-effect defaults
+
+Reset Post Effects should not reset:
+
+- template
+- audio source
+- uploaded file
+- live input
+- Low/Mid/High influence
+- Hit Response
+- visual density
+- visual speed
+- element size
+- depth
+- glow
+- brightness
+- palette
+- Kaleidoscope
+- recording settings
+
+POST EFFECT SETTINGS
+
+Add strongly typed post-effect settings.
+
+Suggested shape:
+
+PostEffectSettings:
+- bloomEnabled: boolean
+- bloomStrength: number
+- bloomRadius: number
+- bloomThreshold: number
+- exposure: number
+
+Keep this separate from audio settings.
+
+It can live with visual settings if that is how the current state is structured, but keep the type clear.
+
+LIVE CONTROLS DURING RECORDING
+
+Post Effects are artistic controls.
+
+These controls must remain editable during recording:
+
+- Bloom toggle
+- Bloom Strength
+- Bloom Radius
+- Bloom Threshold
+- Exposure
+- Reset Post Effects
+
+Changing them during recording should affect the live preview and be captured in the video.
+
+Do not restart MediaRecorder when these controls change.
+
+RECORDING COMPATIBILITY
+
+Recording must continue to work because the same visible canvas is captured.
+
+Do not change the MediaRecorder architecture unless absolutely required.
+
+Do not change:
+
+- MP4/WebM detection
+- MIME type handling
+- filename extension logic
+- bitrate logic
+- canvas captureStream logic
+- audio routing
+- uploaded track recording
+- live input recording
+
+The post-processed final image must be what gets recorded.
+
+RESOLUTION AND RESIZE REQUIREMENTS
+
+The app currently supports:
+
+- 720p
+- 1080p
+- 4K
+- 16:9 landscape
+- 9:16 portrait
+- 1:1 square
+- 30 fps
+- 60 fps
+
+The composer and bloom pass must use the exact selected output dimensions.
+
+Do not use devicePixelRatio to change recording resolution.
+
+When aspect ratio or resolution changes:
+
+- renderer size updates correctly
+- composer size updates correctly
+- bloom pass resolution updates correctly if needed
+- preview still fits correctly in the UI
+- recording uses the exact selected dimensions
+
+KALEIDOSCOPE COMPATIBILITY
+
+Do not break Kaleidoscope.
+
+Test with:
+
+- Kaleidoscope off
+- Kaleidoscope on
+- segment changes
+- rotation on
+- rotation off
+- clockwise
+- counterclockwise
+- speed changes
+
+Kaleidoscope should still work in preview and recordings.
+
+Bloom should affect the Kaleidoscope output in a pleasing way.
+
+If Kaleidoscope is off, the normal scene should still render through the post stack.
+
+TEMPLATE COMPATIBILITY
+
+Do not modify template geometry or hit mappings in this task unless a tiny compatibility adjustment is required.
+
+All current templates must still render:
+
+- Cube Swarm
+- Laser Lattice
+- Wireframe Bloom
+- Fibonacci Spiral
+- Sacred Geometry Bloom
+- Golden Galaxy if present
+- Wireframe Core if present
+
+The templates should look similar structurally, but more premium because bloom adds glow.
+
+Do not add new templates.
+
+Do not remove templates.
+
+PERFORMANCE
+
+Keep the first implementation simple and safe.
+
+Use Three.js built-in passes only.
+
+Do not add pmndrs/postprocessing yet.
+
+Bloom should be efficient enough for 1080p.
+
+4K may be heavier, but should still work for short recordings.
+
+Avoid:
+
+- recreating composer every frame
+- recreating passes every frame
+- React state updates inside requestAnimationFrame
+- new render targets every frame
+- duplicate renderers
+- duplicate canvases
+
+Update pass uniforms/properties when controls change.
+
+CLEANUP
+
+On renderer cleanup / component unmount:
+
+- dispose composer resources where appropriate
+- dispose render targets
+- dispose custom shader materials if Kaleidoscope is refactored into a pass
+- preserve existing template cleanup
+- preserve existing renderer cleanup
+- preserve recording cleanup
+- no WebGL memory leaks
+
+VALIDATION
+
+Test basic render:
+
+1. Load the app.
+2. Confirm preview renders.
+3. Confirm there is still only one visible canvas.
+4. Confirm all existing templates render.
+5. Confirm no console errors.
+
+Test bloom:
+
+1. Bloom on.
+2. Confirm lines, stars, particles, cubes, and wireframes glow.
+3. Set Bloom Strength to 0.
+4. Confirm glow disappears or becomes minimal.
+5. Increase Bloom Strength.
+6. Confirm glow increases.
+7. Change Radius.
+8. Confirm spread changes.
+9. Change Threshold.
+10. Confirm only brighter areas glow at higher threshold.
+11. Change Exposure.
+12. Confirm image brightens/darkens without ugly clipping.
+13. Reset Post Effects.
+14. Confirm defaults return.
+
+Test Kaleidoscope:
+
+1. Enable Kaleidoscope.
+2. Confirm Kaleidoscope still works.
+3. Change segments.
+4. Enable Kaleidoscope rotation.
+5. Change direction.
+6. Change speed.
+7. Confirm bloom still applies correctly.
+8. Disable Kaleidoscope.
+9. Confirm normal scene still renders.
+
+Test audio modes:
+
+1. Uploaded track mode still works.
+2. Play, pause, seek.
+3. Level and Hit meters still work.
+4. Visual templates still react.
+5. Live input mode still works.
+6. Mic/audio interface input still drives visuals.
+7. Stop live input and confirm mic indicator turns off.
+
+Test recording:
+
+1. Record a short uploaded track clip with Bloom enabled.
+2. Preview it.
+3. Confirm the recorded video includes bloom.
+4. Download MP4 if supported.
+5. Download WebM.
+6. Record a short live input clip.
+7. Confirm bloom appears in the recorded output.
+8. Change Bloom Strength during recording.
+9. Confirm the change appears in the recording.
+10. Test 720p.
+11. Test 1080p.
+12. Test one short 4K recording.
+
+Test stability:
+
+1. Switch templates repeatedly.
+2. Toggle Bloom repeatedly.
+3. Toggle Kaleidoscope repeatedly.
+4. Change resolution and aspect ratio.
+5. Start and stop recordings.
+6. Confirm no duplicate canvas.
+7. Confirm no runtime errors.
+8. Run TypeScript checks.
+9. Fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- how the EffectComposer stack is built
+- how Kaleidoscope was preserved
+- how Bloom is applied
+- how Exposure and final output conversion are handled
+- how double tone mapping / double colour conversion was avoided
+- how composer sizing follows selected recording dimensions
+- how recording still captures the post-processed canvas
+- any performance considerations for 4K

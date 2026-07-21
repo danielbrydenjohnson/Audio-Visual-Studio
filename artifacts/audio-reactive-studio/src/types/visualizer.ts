@@ -93,6 +93,36 @@ export const DEFAULT_VISUAL_SETTINGS: ParticleVisualSettings = {
   kaleidoscopeSpeed:     40,
 };
 
+// ─── Post Effects ─────────────────────────────────────────────────────────────
+
+/**
+ * Post-processing settings — the EffectComposer stack that runs AFTER the scene
+ * (and optional kaleidoscope fold) renders: bloom, then tone-mapped final output.
+ * Deliberately separate from both audio settings and ParticleVisualSettings so
+ * "Reset Post Effects" touches only these five values and "Reset Visuals" never
+ * touches them.
+ */
+export interface PostEffectSettings {
+  /** Master bloom on/off. */
+  bloomEnabled:   boolean;
+  /** Bloom intensity, 0–3. */
+  bloomStrength:  number;
+  /** Bloom spread, 0–1. */
+  bloomRadius:    number;
+  /** Luminance threshold, 0–1 — only areas brighter than this bloom. */
+  bloomThreshold: number;
+  /** ACES filmic tone-mapping exposure, 0.5–2.0 (1.0 = neutral). */
+  exposure:       number;
+}
+
+export const DEFAULT_POST_EFFECT_SETTINGS: PostEffectSettings = {
+  bloomEnabled:   true,
+  bloomStrength:  0.8,
+  bloomRadius:    0.35,
+  bloomThreshold: 0.15,
+  exposure:       1.0,
+};
+
 /**
  * Point-template density preset → element count.
  * Used by the points-based Fibonacci Spiral. Mesh/line templates define their

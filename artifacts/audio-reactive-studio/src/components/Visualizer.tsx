@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import {
   type VisualizerSettings,
   type ParticleVisualSettings,
+  type PostEffectSettings,
   type PaletteName,
 } from "@/types/visualizer";
 import type { VisualTemplateId } from "@/visuals/types";
@@ -31,6 +37,12 @@ export interface VisualizerProps {
    * so Reset Visuals restores the full set in one step.
    */
   visualSettings: ParticleVisualSettings;
+  /**
+   * Post-processing settings (bloom + exposure). Applied as per-frame pass
+   * property/uniform writes — never rebuilds the composer, so they are safe to
+   * change live during recording.
+   */
+  postEffects: PostEffectSettings;
   /** Which visual template to render. Changing this hot-swaps the geometry. */
   templateId: VisualTemplateId;
   /** Selected recording width in pixels — the renderer drawing-buffer resolution. */
@@ -74,10 +86,11 @@ function expSmooth(current: number, target: number): number {
   return current + (target - current) * coeff;
 }
 
-// Fullscreen FINAL COMPOSITE pass. Runs every frame in BOTH modes: it samples the
-// rendered scene from the render target, optionally folds it into N mirrored
-// kaleidoscope wedges (only when uKaleidoscope is on), then applies the global
-// brightness curve to the final colour before writing to the visible canvas.
+// Kaleidoscope + brightness pass (runs inside the EffectComposer, BEFORE bloom
+// and the final OutputPass). Every frame in BOTH modes: samples the rendered
+// scene, optionally folds it into N mirrored wedges (only when uKaleidoscope is
+// on), then applies the global brightness curve. HDR-safe: energy above 1.0 is
+// passed through untouched so bloom still sees bright linear highlights.
 const POST_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -122,17 +135,20 @@ const POST_FRAGMENT = /* glsl */ `
       uv = q + 0.5;              // MirroredRepeat wrapping keeps samples continuous
     }
 
-    vec3 c = clamp(texture2D(tDiffuse, uv).rgb, 0.0, 1.0);
+    vec3 c = texture2D(tDiffuse, uv).rgb;
 
     // Global brightness as a "screen against itself" curve:
     //   out = 1 - (1 - c) ^ brightness
-    // At 100% this is exactly identity (preserves the current look). Higher values
-    // lift shadows and mid-tones the most and taper toward the top, so highlights
-    // brighten without flattening to pure white; pure black (c = 0) always maps to
-    // 0, so black backgrounds stay black rather than washing out to grey.
-    c = 1.0 - pow(1.0 - c, vec3(uBrightness));
+    // At 100% this is exactly identity. Higher values lift shadows and mid-tones
+    // the most and taper toward the top; pure black always maps to 0.
+    // The curve only makes sense on 0–1 values, so HDR energy above 1.0 (additive
+    // blending into the HalfFloat target) is split off and added back afterwards —
+    // clamping it away here would starve the bloom pass of its highlights.
+    vec3 excess = max(c - 1.0, vec3(0.0));
+    vec3 base   = clamp(c, 0.0, 1.0);
+    base = 1.0 - pow(1.0 - base, vec3(uBrightness));
 
-    gl_FragColor = vec4(c, 1.0);
+    gl_FragColor = vec4(base + excess, 1.0);
   }
 `;
 
@@ -146,7 +162,7 @@ const POST_FRAGMENT = /* glsl */ `
  * capture stream are never interrupted.
  */
 export function Visualizer({
-  audioFrame, settings, visualSettings, templateId,
+  audioFrame, settings, visualSettings, postEffects, templateId,
   outputWidth, outputHeight, frameRate,
   onCanvasReady, onPerformanceWarning,
 }: VisualizerProps) {
@@ -159,6 +175,7 @@ export function Visualizer({
   const audioFrameRef           = useRef(audioFrame);
   const settingsRef             = useRef(settings);
   const visualSettingsRef       = useRef(visualSettings);
+  const postEffectsRef          = useRef(postEffects);
   const templateIdRef           = useRef(templateId);
   const outputWRef              = useRef(outputWidth);
   const outputHRef              = useRef(outputHeight);
@@ -169,6 +186,7 @@ export function Visualizer({
   audioFrameRef.current           = audioFrame;
   settingsRef.current             = settings;
   visualSettingsRef.current       = visualSettings;
+  postEffectsRef.current          = postEffects;
   templateIdRef.current           = templateId;
   outputWRef.current              = outputWidth;
   outputHRef.current              = outputHeight;
@@ -193,6 +211,13 @@ export function Visualizer({
     // is scaled down purely via CSS (letterbox fit) in applyFraming().
     renderer.setPixelRatio(1);
     renderer.setClearColor(0x03040a, 1);
+    // ACES filmic tone mapping — applied EXACTLY ONCE by the composer's final
+    // OutputPass (custom template ShaderMaterials never include tone-mapping or
+    // colour-space chunks, so nothing upstream converts twice). Exposure is a
+    // live per-frame write below.
+    renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = postEffectsRef.current.exposure;
+    renderer.outputColorSpace    = THREE.SRGBColorSpace;
     wrapper.appendChild(renderer.domElement);
     renderer.domElement.style.display = "block";
     onCanvasReadyRef.current?.(renderer.domElement);
@@ -207,26 +232,34 @@ export function Visualizer({
     // ── Shared uniforms (referenced by every template material) ─────────────
     const shared = createSharedUniforms(visualSettingsRef.current, halfW, halfH, halfD);
 
-    // ── Final composite pipeline (persistent: render target + full-screen shader) ──
-    // Every frame renders the scene into this target, then the final shader writes
-    // the result to the canvas (optional kaleidoscope fold + global brightness).
-    // samples: 4 keeps MSAA anti-aliasing through the off-screen pass, so routing
-    // the normal (non-kaleidoscope) path through the target loses no edge quality.
-    const renderTarget = new THREE.WebGLRenderTarget(1, 1, {
+    // ── Post-processing pipeline (persistent EffectComposer) ────────────────
+    // RenderPass → kaleidoscope/brightness ShaderPass → UnrealBloomPass →
+    // OutputPass. Built ONCE; every later change is a pass property / uniform
+    // write. The final OutputPass always renders to the same visible canvas
+    // (renderer.domElement), so captureStream() records the post-processed image.
+    //
+    // The composer's ping-pong target is HalfFloatType so additive blending can
+    // exceed 1.0 in linear light (bloom feeds on that headroom); samples: 4 keeps
+    // MSAA through the off-screen passes; MirroredRepeat wrapping lets the
+    // kaleidoscope fold sample outside [0,1] seamlessly (EffectComposer clones
+    // this target for its second buffer, wrap settings included).
+    const composerTarget = new THREE.WebGLRenderTarget(1, 1, {
+      type:      THREE.HalfFloatType,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       samples:   4,
     });
-    renderTarget.texture.wrapS = THREE.MirroredRepeatWrapping;
-    renderTarget.texture.wrapT = THREE.MirroredRepeatWrapping;
-    renderTarget.texture.generateMipmaps = false;
+    composerTarget.texture.wrapS = THREE.MirroredRepeatWrapping;
+    composerTarget.texture.wrapT = THREE.MirroredRepeatWrapping;
+    composerTarget.texture.generateMipmaps = false;
 
-    const postScene  = new THREE.Scene();
-    const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const postGeometry = new THREE.PlaneGeometry(2, 2);
-    const postMaterial = new THREE.ShaderMaterial({
+    const composer   = new EffectComposer(renderer, composerTarget);
+    const renderPass = new RenderPass(scene, camera);
+    // Always enabled: it branches on uKaleidoscope internally and also applies
+    // the global brightness curve, exactly like the previous manual quad.
+    const kaleidoPass = new ShaderPass({
       uniforms: {
-        tDiffuse:      { value: renderTarget.texture },
+        tDiffuse:      { value: null }, // wired to the read buffer by ShaderPass
         uSegments:     { value: visualSettingsRef.current.kaleidoscopeSegments },
         uResolution:   { value: new THREE.Vector2(1, 1) },
         uBrightness:   { value: visualSettingsRef.current.brightness / 100 },
@@ -235,11 +268,21 @@ export function Visualizer({
       },
       vertexShader:   POST_VERTEX,
       fragmentShader: POST_FRAGMENT,
-      depthTest:  false,
-      depthWrite: false,
     });
-    const postQuad = new THREE.Mesh(postGeometry, postMaterial);
-    postScene.add(postQuad);
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(1, 1),
+      postEffectsRef.current.bloomStrength,
+      postEffectsRef.current.bloomRadius,
+      postEffectsRef.current.bloomThreshold,
+    );
+    bloomPass.enabled = postEffectsRef.current.bloomEnabled;
+    // OutputPass applies renderer.toneMapping (ACES) + linear→sRGB conversion —
+    // the ONLY place in the chain where either happens.
+    const outputPass = new OutputPass();
+    composer.addPass(renderPass);
+    composer.addPass(kaleidoPass);
+    composer.addPass(bloomPass);
+    composer.addPass(outputPass);
 
     // ── Active template runtime ──────────────────────────────────────────────
     let currentTemplate = templateIdRef.current;
@@ -295,9 +338,11 @@ export function Visualizer({
       const fovRad = (FOV * Math.PI) / 180;
       shared.uPixelScale.value = renderer.domElement.height / (2 * Math.tan(fovRad / 2));
 
-      // Kaleidoscope render target + post resolution match the output dimensions.
-      renderTarget.setSize(outW, outH);
-      postMaterial.uniforms.uResolution.value.set(outW, outH);
+      // Composer buffers (and every pass, bloom included — composer.setSize
+      // fans out to pass.setSize) match the EXACT output dimensions; DPR is
+      // never multiplied in.
+      composer.setSize(outW, outH);
+      kaleidoPass.uniforms.uResolution.value.set(outW, outH);
 
       runtime.onFraming?.(halfW, halfH, halfD);
     }
@@ -436,15 +481,22 @@ export function Visualizer({
       audioLevels.highHit = hitHigh;
       runtime.onFrame?.(shared.uTime.value, dt, audioLevels);
 
-      // Single composite path for BOTH modes: render the scene into the render
-      // target, then run the final shader (optional kaleidoscope fold + global
-      // brightness) to the visible canvas. All uniform writes are plain value
-      // assignments — no shader rebuilds, no per-frame allocation — and the final
-      // image always lands on renderer.domElement so captureStream() records
-      // exactly what the user sees, including the rotating kaleidoscope effect.
-      postMaterial.uniforms.uKaleidoscope.value = vs.kaleidoscope ? 1 : 0;
-      postMaterial.uniforms.uSegments.value     = Math.max(2, vs.kaleidoscopeSegments);
-      postMaterial.uniforms.uBrightness.value   = Math.max(0.01, vs.brightness / 100);
+      // Single composer path for BOTH modes: RenderPass → kaleidoscope/brightness
+      // → bloom → OutputPass (ACES + sRGB, once). All updates below are plain
+      // pass-property / uniform writes — no composer or pass is ever rebuilt, no
+      // per-frame allocation — and the final image always lands on
+      // renderer.domElement so captureStream() records exactly what the user
+      // sees, including live post-effect tweaks made during recording.
+      kaleidoPass.uniforms.uKaleidoscope.value = vs.kaleidoscope ? 1 : 0;
+      kaleidoPass.uniforms.uSegments.value     = Math.max(2, vs.kaleidoscopeSegments);
+      kaleidoPass.uniforms.uBrightness.value   = Math.max(0.01, vs.brightness / 100);
+
+      const pe = postEffectsRef.current;
+      bloomPass.enabled            = pe.bloomEnabled;
+      bloomPass.strength           = pe.bloomStrength;
+      bloomPass.radius             = pe.bloomRadius;
+      bloomPass.threshold          = pe.bloomThreshold;
+      renderer.toneMappingExposure = pe.exposure; // read by OutputPass each render
 
       // Advance the kaleidoscope angle offset. The angle accumulates in a closure
       // variable (never React state) so writes never re-render the component.
@@ -458,11 +510,8 @@ export function Visualizer({
         if (kAngle >  Math.PI * 2) kAngle -= Math.PI * 2;
         if (kAngle < -Math.PI * 2) kAngle += Math.PI * 2;
       }
-      postMaterial.uniforms.uAngleOffset.value = kAngle;
-      renderer.setRenderTarget(renderTarget);
-      renderer.render(scene, camera);
-      renderer.setRenderTarget(null);
-      renderer.render(postScene, postCamera);
+      kaleidoPass.uniforms.uAngleOffset.value = kAngle;
+      composer.render();
       // ── Performance sampling → debounced warning (never auto-changes settings) ──
       fpsFrames++;
       const fpsElapsed = now - fpsWindowStart;
@@ -504,9 +553,13 @@ export function Visualizer({
       ro.disconnect();
       scene.remove(runtime.root);
       runtime.dispose();
-      renderTarget.dispose();
-      postGeometry.dispose();
-      postMaterial.dispose();
+      // Dispose every pass (ShaderPass frees its material/quad, UnrealBloomPass
+      // its internal mip targets/materials), then the composer's own ping-pong
+      // render targets. renderPass has no GPU resources of its own.
+      kaleidoPass.dispose();
+      bloomPass.dispose();
+      outputPass.dispose();
+      composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       if (renderer.domElement.parentNode === wrapper) {
