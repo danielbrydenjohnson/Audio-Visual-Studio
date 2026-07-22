@@ -5,8 +5,9 @@
  * BandAnalysisEngine so the meters, visual templates and influence controls
  * receive identical values regardless of where the audio came from.
  *
- *   Low:  20–200 Hz    — sub-bass, basslines, kick energy
- *   Mid:  250–4000 Hz  — snares, claps, vocals, synth body, melody
+ *   Low:  20–150 Hz    — sub-bass, kick, bass weight, low-end pressure
+ *   Gap:  150–350 Hz  — intentionally excluded (muddy low-mid; feeds no band)
+ *   Mid:  350–4000 Hz  — snares, claps, vocals, synth body, melody
  *   High: 4000–16000 Hz — hi-hats, cymbals, brightness, transients
  *
  * Each band exposes TWO signals per frame (both 0–100):
@@ -72,10 +73,12 @@ export const SMOOTHING = 0.1;
 
 interface BandRange { fLow: number; fHigh: number }
 
+// 150–350 Hz is an intentional gap — feeds no band. Both fLow/fHigh are in Hz;
+// bin indices are always calculated as round(freqHz / binWidth), never hardcoded.
 export const BAND_RANGES: Record<BandKey, BandRange> = {
-  low:  { fLow: 20,   fHigh: 200   },
-  mid:  { fLow: 250,  fHigh: 4000  },
-  high: { fLow: 4000, fHigh: 16000 },
+  low:  { fLow: 20,   fHigh: 150   },  // sub-bass, kick, bass weight
+  mid:  { fLow: 350,  fHigh: 4000  },  // snares, claps, vocals, synth body
+  high: { fLow: 4000, fHigh: 16000 },  // hi-hats, cymbals, brightness
 };
 
 // ─── Level smoothing (downstream replacement for the old analyser smoothing) ──

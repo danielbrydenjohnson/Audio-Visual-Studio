@@ -1,0 +1,184 @@
+Update the audio frequency band ranges in Audio Reactive Studio.
+
+The app is currently working. It has uploaded track mode, live input mode, Low/Mid/High level and hit analysis, Hit Response controls, visual templates, Kaleidoscope, post effects, recording, and collapsible UI sections.
+
+Do not rebuild the app from scratch.
+
+Do not change visual templates.
+
+Do not change recording.
+
+Do not change Kaleidoscope.
+
+Do not change post effects.
+
+GOAL
+
+Tighten the frequency bands so Low is more focused on true low-end impact, and Mid avoids the muddy low-mid range.
+
+Change the band ranges to:
+
+Low:
+20 Hz to 150 Hz
+
+Ignored gap:
+150 Hz to 350 Hz
+
+Mid:
+350 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+The 150 Hz to 350 Hz range should not feed Low, Mid, or High.
+
+This gap is intentional.
+
+RATIONALE
+
+Low should focus on:
+
+- kick
+- sub
+- bass weight
+- low-end pressure
+
+Mid should focus on:
+
+- snare
+- clap
+- vocal body
+- synth body
+- musical articulation
+
+The 150 Hz to 350 Hz low-mid area can make visuals feel muddy, overactive, or confused. Excluding it should make the band separation cleaner.
+
+IMPLEMENTATION
+
+Update the central frequency band definitions only.
+
+Do not hardcode FFT bin numbers.
+
+Continue calculating bin ranges from:
+
+- AudioContext sample rate
+- fftSize
+- frequency range in Hz
+
+Make sure both analysis paths use the same updated ranges:
+
+- uploaded track mode
+- live input mode
+
+Make sure both signal types use the same updated ranges:
+
+- level
+- hit / spectral flux
+
+If there are labels or helper text in the UI that show the old ranges, update them.
+
+The UI should reflect:
+
+Low: 20-150 Hz
+Mid: 350-4,000 Hz
+High: 4,000-16,000 Hz
+
+If there is any documentation or constants file that lists old ranges, update it.
+
+SENSITIVITY CHECK
+
+Because the Low and Mid ranges are changing, check the signal strength.
+
+Low now has fewer bins than before.
+
+Mid now starts higher than before.
+
+If needed, lightly retune internal level or flux sensitivity constants so the meters still behave naturally.
+
+Do not over-amplify.
+
+Expected behaviour:
+
+- Low should still spike clearly on kicks and bass hits.
+- Mid should still respond clearly to snares, claps, vocals, and synth body.
+- High should remain unchanged.
+- The 150-350 Hz range should not drive visual reactions.
+
+Do not add new sensitivity controls in this task.
+
+PRESERVE
+
+Do not break:
+
+- uploaded track analysis
+- live input analysis
+- level meters
+- hit meters
+- Hit Response attack/decay controls
+- Low/Mid/High influence sliders
+- visual template reactions
+- Kaleidoscope
+- post effects
+- recording
+- MP4/WebM export
+- 720p/1080p/4K output
+
+VALIDATION
+
+Test uploaded track mode:
+
+1. Upload a drum-heavy track.
+2. Confirm Low Level and Low Hit respond mainly to kick and bass.
+3. Confirm Low feels tighter than before.
+4. Confirm Mid no longer feels constantly overactive from low-mid energy.
+5. Confirm Mid still responds to snare, clap, vocal, synth, and musical body.
+6. Confirm High still responds to hats and bright transients.
+
+Test influence isolation:
+
+1. Set Low Influence to 200%, Mid and High to 0%.
+2. Confirm Low is tighter and mostly kick/bass driven.
+3. Set Mid Influence to 200%, Low and High to 0%.
+4. Confirm Mid is cleaner and less muddy.
+5. Set High Influence to 200%, Low and Mid to 0%.
+6. Confirm High behaves as before.
+
+Test live input mode:
+
+1. Start Live Input.
+2. Clap near the mic.
+3. Confirm Mid or High reacts, depending on the clap brightness.
+4. Speak into the mic.
+5. Confirm Mid reacts.
+6. Play bass-heavy audio near the mic or through an interface.
+7. Confirm Low reacts.
+
+Test visual behaviour:
+
+1. Test Cube Swarm.
+2. Test Laser Lattice.
+3. Test Wireframe Bloom.
+4. Test Fibonacci Spiral.
+5. Test Sacred Geometry Bloom.
+6. Test Golden Galaxy if present.
+7. Test Wireframe Core if present.
+8. Confirm Mid feels less chaotic across templates.
+
+Test recording:
+
+1. Record a short uploaded track clip.
+2. Confirm visuals and audio record correctly.
+3. Record a short live input clip.
+4. Confirm live input still records correctly.
+
+Run TypeScript checks and fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- where the band ranges are defined
+- how Low changed
+- how Mid changed
+- how the 150-350 Hz ignored gap is handled
+- whether any sensitivity constants were adjusted
+- how uploaded track and live input both use the updated ranges
