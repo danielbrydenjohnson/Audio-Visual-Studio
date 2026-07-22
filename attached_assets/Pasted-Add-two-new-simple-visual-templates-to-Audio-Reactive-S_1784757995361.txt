@@ -1,0 +1,302 @@
+Add two new simple visual templates to Audio Reactive Studio.
+
+The current app is working. It has uploaded track mode, live input mode, Low/Mid/High level and hit analysis, Hit Response controls, collapsible UI sections, visual templates, Kaleidoscope, post effects, recording, and output settings.
+
+Do not rebuild the app from scratch.
+
+Do not remove or replace existing templates.
+
+Do not change recording.
+
+Do not change Kaleidoscope.
+
+Do not change post effects.
+
+GOAL
+
+Add two new simple, elegant templates based on a small number of curvy / wiggly luminous lines.
+
+These templates should be calmer and more minimal than the denser geometric templates.
+
+They should look intentional and premium, not like placeholders.
+
+NEW TEMPLATE 1
+
+Name:
+Silk Lines
+
+Description:
+"A minimal set of luminous flowing lines drifting gently through space."
+
+Concept:
+A small number of curvy, wiggly lines with subtle movement.
+
+They should feel like luminous ribbons or threads suspended in space.
+
+NEW TEMPLATE 2
+
+Name:
+Orbital Threads
+
+Description:
+"Flowing luminous lines with small spheres anchored at their ends."
+
+Concept:
+Similar to Silk Lines, but each line should have a small sphere at both ends.
+
+The spheres should visually anchor the line and make the form feel more designed.
+
+The spheres should not be huge.
+
+They should be small, elegant, and clearly connected to the line ends.
+
+They should move naturally with the lines.
+
+GENERAL VISUAL REQUIREMENTS FOR BOTH
+
+Both templates should:
+
+- be clean and minimal
+- have only a few long smooth curvy lines
+- have small differences in shape, offset, and phase
+- have slight depth separation
+- have gentle resting movement when audio is paused
+- remain readable and calm
+- look strong in Monochrome
+- work well with Kaleidoscope
+- work well with Bloom when enabled
+- still look good when Post Effects are off
+
+These should not be:
+
+- particle clouds
+- dense lattices
+- tunnels
+- corridors
+- chaotic scribbles
+
+DENSITY MAPPING
+
+Both templates should use the existing Visual Density control, but with a simple stepped mapping:
+
+- Low density = 3 lines
+- Medium density = 6 lines
+- High density = 9 lines
+
+For Orbital Threads, that means:
+
+- Low density = 3 lines and 6 spheres
+- Medium density = 6 lines and 12 spheres
+- High density = 9 lines and 18 spheres
+
+Do not create excessive geometry.
+
+If the existing density setting is numeric, map it internally for these templates to the three tiers above.
+
+MOVEMENT
+
+Both templates should have subtle resting motion even with no audio.
+
+Examples of acceptable motion:
+
+- slight wave undulation
+- slow drifting
+- gentle phase movement
+- small depth drift
+- slight organic wriggle
+
+The templates should remain calm and elegant.
+
+Do not let them become chaotic.
+
+Do not let the motion become fast or noisy by default.
+
+For Orbital Threads:
+
+- the end spheres should follow the line ends naturally
+- they may have slight additional shimmer or emphasis
+- they should not detach from the line ends
+- they should feel like part of one connected structure
+
+AUDIO MAPPING
+
+Use the existing Low / Mid / High level and hit signals.
+
+Keep the reactions tasteful and restrained.
+
+LOW
+
+For both templates:
+- create slight heavier pulses in selected lines
+- some lines can sway outward slightly
+- subtle brightness or scale punch if possible
+- do not move all lines identically
+
+For Orbital Threads:
+- the end spheres can get a subtle punch or forward emphasis on Low
+- keep it restrained
+
+MID
+
+For both templates:
+- Mid should be the main expressive band
+- create controlled ripple / wiggle modulation along the lines
+- keep it bounded and elegant
+- do not let Mid make the lines go mad
+
+For Orbital Threads:
+- the spheres can echo the line motion slightly
+- avoid excessive wobble or chaos
+
+HIGH
+
+For both templates:
+- add small brightness accents, glints, or local shimmer along line segments
+- a changing subset of line portions can brighten briefly
+- avoid full-scene flashing
+
+For Orbital Threads:
+- the small spheres can sparkle slightly on High
+- small glints are good
+- do not turn them into flashing bulbs
+
+As with all templates:
+
+- individual line behaviour should vary
+- the whole scene should not simply scale as one object
+- the whole scene should not rotate as one object
+- at 0% influence, that band should have no visible effect
+- resting animation should continue even when influences are 0%
+
+VISUAL STYLE
+
+Default palette should work especially well in:
+
+- Monochrome
+
+Also support:
+
+- Cyan Violet
+- Ember
+
+Monochrome should feel clean and premium.
+
+IMPLEMENTATION GUIDANCE
+
+Use efficient Three.js techniques.
+
+Good options include:
+
+- one or a small number of line geometries
+- BufferGeometry
+- Line
+- Points or small sphere meshes where appropriate
+- typed arrays
+- shared materials
+- a controlled number of objects
+
+For Orbital Threads:
+- small sphere meshes are acceptable because the count is low
+- keep the sphere count controlled and efficient
+- spheres should remain attached to line endpoints
+
+Do not create excessive object counts.
+
+Do not use React state updates inside requestAnimationFrame.
+
+Do not create a new renderer, scene, camera, or animation loop.
+
+TEMPLATE ARCHITECTURE
+
+Preserve the existing template architecture:
+
+- one persistent renderer
+- one visible canvas
+- one scene
+- one camera
+- one animation loop
+- one active template root
+
+Register both templates cleanly in:
+
+- template type / ID union
+- template metadata
+- template selector
+- template factory
+- active template display
+
+Suggested template IDs:
+
+- silk-lines
+- orbital-threads
+
+Do not break existing templates.
+
+KALEIDOSCOPE, POST EFFECTS, RECORDING
+
+Both templates must work with:
+
+- Kaleidoscope on / off
+- Kaleidoscope segments
+- Kaleidoscope rotation
+- Post Effects off
+- Bloom on
+- uploaded track mode
+- live input mode
+- MP4 recording
+- WebM recording
+- 720p
+- 1080p
+- 4K
+- landscape
+- portrait
+- square
+
+The same visible canvas must still be captured for recording.
+
+Do not create a second canvas.
+
+VALIDATION
+
+Test all of the following:
+
+1. Confirm Silk Lines appears in the template selector.
+2. Confirm Orbital Threads appears in the template selector.
+3. Select Silk Lines with audio paused.
+4. Confirm it shows a small number of clean curvy lines.
+5. Select Orbital Threads with audio paused.
+6. Confirm it shows a small number of clean curvy lines with small spheres at both ends.
+7. Confirm low density shows 3 lines.
+8. Confirm medium density shows 6 lines.
+9. Confirm high density shows 9 lines.
+10. Confirm Orbital Threads shows the correct number of end spheres.
+11. Confirm both templates have gentle resting movement.
+12. Confirm both templates remain calm and readable.
+13. Test Low at 200% with Mid and High at 0%.
+14. Confirm Low creates subtle pulse / sway.
+15. Test Mid at 200% with Low and High at 0%.
+16. Confirm Mid creates controlled ripple / wiggle.
+17. Test High at 200% with Low and Mid at 0%.
+18. Confirm High creates small glints / brightness accents.
+19. Confirm Mid does not make the templates go mad.
+20. Enable Kaleidoscope on both.
+21. Test segment changes.
+22. Test Kaleidoscope rotation.
+23. Test Bloom on and off.
+24. Record a short uploaded-track clip.
+25. Record a short live-input clip.
+26. Confirm the recordings contain both templates correctly.
+27. Run TypeScript checks.
+28. Fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- what template IDs and metadata were added
+- how the line count maps to low / medium / high density
+- how Silk Lines is constructed
+- how Orbital Threads is constructed
+- how the spheres are attached to the line ends
+- how resting motion works
+- how Low, Mid, and High affect both templates
+- how Kaleidoscope and recording remain compatible
