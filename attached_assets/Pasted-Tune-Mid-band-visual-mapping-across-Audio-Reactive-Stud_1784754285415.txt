@@ -1,0 +1,375 @@
+Tune Mid band visual mapping across Audio Reactive Studio templates.
+
+The app is currently working. It has:
+
+- uploaded track mode
+- live input mode
+- Low/Mid/High level and hit analysis
+- Hit Response controls
+- collapsible UI sections
+- visual templates
+- Kaleidoscope
+- post effects
+- MP4/WebM recording
+- 4K output
+
+Do not rebuild the app from scratch.
+
+Do not change audio analysis.
+
+Do not change Low/Mid/High frequency ranges.
+
+Do not change the Hit Response engine.
+
+Do not change recording.
+
+Do not change Kaleidoscope.
+
+Do not add or remove templates.
+
+GOAL
+
+The Mid band currently behaves inconsistently.
+
+On some templates it has a mild useful effect.
+
+On other templates it drives the visuals absolutely mad.
+
+Fix this by retuning the visual mapping of Mid Level and Mid Hit across all current templates.
+
+CORE MEANING OF EACH BAND
+
+Preserve this visual language:
+
+Low = weight, impact, pressure
+
+Low should drive:
+
+- kick/bass punch
+- outward pressure
+- depth surges
+- heavy pulses
+- physical movement
+
+High = sparkle, detail, sharpness
+
+High should drive:
+
+- glints
+- flickers
+- sparkles
+- edge highlights
+- small fast details
+
+Mid = body, rhythm, articulation
+
+Mid should drive:
+
+- controlled local shape modulation
+- subtle bend
+- mild twist
+- ripple
+- phase movement
+- musical articulation
+
+Mid must not be the chaos band.
+
+PROBLEM TO FIX
+
+Mid is too aggressive in some templates.
+
+Likely causes:
+
+- Mid Level mapped to large rotation
+- Mid Level mapped to strong turbulence
+- Mid Hit adding accumulating angular velocity
+- Mid Hit causing unbounded phase drift
+- Mid affecting too many elements at once
+- Mid moving entire structures too much
+- Mid making templates lose their shape
+
+Fix the template mappings so Mid remains composed.
+
+IMPORTANT RULES
+
+At Mid Influence 100%:
+
+- every template should remain visually composed
+- Mid should be noticeable but tasteful
+- no template should spin, thrash, explode, or become unreadable
+
+At Mid Influence 200%:
+
+- Mid can become energetic
+- Mid should still remain usable
+- no template should become visually broken
+- no template should become chaotic noise
+
+At Mid Influence 0%:
+
+- Mid Level and Mid Hit should have no visible effect
+- resting animation should continue
+
+Mid effects should be bounded.
+
+Do not let Mid Hit permanently accumulate uncontrolled speed, spin, offset, or distortion.
+
+If Mid Hit currently adds angular velocity, change it to a temporary bounded impulse or local offset that returns to normal naturally.
+
+Do not rotate the full template root as the main Mid effect.
+
+Do not scale the full scene as the main Mid effect.
+
+Do not flash the full canvas.
+
+TEMPLATE-SPECIFIC TUNING
+
+Apply this to every current working template.
+
+CUBE SWARM
+
+Current issue to avoid:
+- Mid should not make cubes spin insanely or tumble out of control.
+
+Desired Mid behaviour:
+- Mid Level creates mild per-cube wobble or orientation variation.
+- Mid Hit creates a short tumbling accent on selected cubes.
+- The burst should be bounded and decay naturally.
+- Cubes should remain readable.
+
+Reduce:
+- accumulated angular velocity from Mid
+- global tumble strength
+- excessive rotation multipliers
+
+LASER LATTICE
+
+Current issue to avoid:
+- Mid should not make the lattice kink wildly or shred the structure.
+
+Desired Mid behaviour:
+- Mid Level creates subtle local phase shifts or controlled directional bends.
+- Mid Hit creates a brief local kink or ripple through selected line groups.
+- The lattice should still feel like a clean spatial structure.
+
+Reduce:
+- large direction changes
+- excessive turbulence
+- too many lines affected at once
+- unbounded phase distortion
+
+WIREFRAME BLOOM
+
+Current issue to avoid:
+- Mid should not make shells thrash or spin too fast.
+
+Desired Mid behaviour:
+- Mid Level gently twists or offsets layers.
+- Mid Hit briefly accelerates unfolding or adds a controlled layer twist.
+- The bloom should remain elegant and readable.
+
+Reduce:
+- spin bursts
+- large rotational impulses
+- full-form twisting
+- anything that causes shape collapse
+
+FIBONACCI SPIRAL
+
+Current issue to avoid:
+- Mid should not rotate or distort the whole spiral too aggressively.
+
+Desired Mid behaviour:
+- Mid Level creates a travelling ripple along the spiral.
+- Mid Hit creates a short local phase wave.
+- The golden spiral structure must remain recognisable.
+
+Reduce:
+- full-root rotation
+- aggressive arm distortion
+- excessive phase amplitude
+- too many nodes shifting at once
+
+SACRED GEOMETRY BLOOM
+
+Current issue to avoid:
+- Mid should not make radial geometry spin wildly.
+
+Desired Mid behaviour:
+- Mid Level creates small independent phase offsets between layers.
+- Mid Hit creates a brief controlled rotational accent per layer.
+- The radial geometry should remain symmetrical enough to read.
+
+Reduce:
+- layer spin speed
+- aggressive angular offsets
+- full pattern chaos
+- overactive Mid response on all layers
+
+GOLDEN GALAXY, IF PRESENT
+
+Current issue to avoid:
+- Mid should not churn the galaxy into noise.
+
+Desired Mid behaviour:
+- Mid Level creates subtle arm swirl.
+- Mid Hit creates a short travelling swirl accent through selected arm regions.
+- Galaxy spiral arms should remain visible.
+
+Reduce:
+- excessive arm turbulence
+- unbounded swirl
+- all-star motion from Mid
+- aggressive mid-driven rotation
+
+WIREFRAME CORE, IF PRESENT
+
+Current issue to avoid:
+- Mid should not create angular whiplash.
+
+Desired Mid behaviour:
+- Mid Level creates controlled shell articulation.
+- Mid Hit briefly offsets or twists individual shells.
+- The central shape should remain readable and premium.
+
+Reduce:
+- angular whip
+- large per-shell spin bursts
+- unbounded rotation velocity
+- excessive edge wobble
+
+IMPLEMENTATION GUIDANCE
+
+Prefer:
+
+- smaller Mid multipliers
+- bounded sine/cosine offsets
+- temporary offsets based directly on current Mid Hit envelope
+- local phase shifts
+- per-element variation with restrained amplitude
+- clamp values where needed
+- reduce number of elements affected by Mid Hit if required
+
+Avoid:
+
+- adding Mid Hit directly to permanent velocity without damping
+- applying Mid to root transforms
+- huge turbulence values
+- huge rotation multipliers
+- all elements reacting identically
+- all elements reacting at full strength
+- full-scene flashing
+
+If a template already has a good Mid response, only lightly tune it.
+
+Do not make every template identical.
+
+Each template can keep its own character, but Mid should consistently mean controlled articulation rather than chaos.
+
+PRESERVE LOW AND HIGH
+
+Do not weaken Low unless it is directly interacting badly with Mid.
+
+Low should remain strong and physical.
+
+Do not weaken High unless it is directly interacting badly with Mid.
+
+High should remain sharp and sparkly.
+
+The task is specifically to fix Mid mapping.
+
+PRESERVE UI AND CONTROLS
+
+Do not add new controls in this task.
+
+Do not change slider names.
+
+Do not change Hit Response controls.
+
+Do not change collapsible sections.
+
+Existing Low/Mid/High Influence sliders should still work.
+
+Existing Hit Response attack/decay controls should still work.
+
+PRESERVE RECORDING AND POST EFFECTS
+
+Do not change:
+
+- MediaRecorder
+- captureStream
+- MP4/WebM logic
+- output resolution
+- post effects defaults
+- bloom controls
+- exposure
+- Kaleidoscope
+- Kaleidoscope rotation
+
+The new Mid tuning should appear in recordings automatically because templates render to the same canvas.
+
+VALIDATION
+
+Test Mid isolation carefully.
+
+For each current template:
+
+1. Set Low Influence to 0%.
+2. Set Mid Influence to 100%.
+3. Set High Influence to 0%.
+4. Play a drum-heavy or vocal-heavy track.
+5. Confirm Mid is visible but controlled.
+6. Confirm the template remains readable.
+7. Set Mid Influence to 200%.
+8. Confirm the effect becomes stronger but still usable.
+9. Set Mid Influence to 0%.
+10. Confirm Mid no longer affects the visual.
+11. Confirm resting animation continues.
+
+Test all current templates:
+
+- Cube Swarm
+- Laser Lattice
+- Wireframe Bloom
+- Fibonacci Spiral
+- Sacred Geometry Bloom
+- Golden Galaxy if present
+- Wireframe Core if present
+
+Also test combined behaviour:
+
+1. Low 100%, Mid 100%, High 100%.
+2. Confirm visuals feel musical and balanced.
+3. Low 200%, Mid 100%, High 100%.
+4. Confirm Low has weight.
+5. Low 100%, Mid 200%, High 100%.
+6. Confirm Mid is energetic but not mad.
+7. Low 100%, Mid 100%, High 200%.
+8. Confirm High adds detail and sparkle.
+
+Test recording:
+
+1. Record a short clip with Mid at 100%.
+2. Record a short clip with Mid at 200%.
+3. Confirm the video captures the tuned Mid behaviour.
+4. Confirm recording does not break.
+
+Test stability:
+
+1. Switch templates repeatedly.
+2. Toggle Kaleidoscope.
+3. Toggle post effects.
+4. Use live input.
+5. Confirm no runtime errors.
+6. Run TypeScript checks.
+7. Fix all errors.
+
+After implementation, explain:
+
+- which template files changed
+- what Mid was doing before
+- how Mid was reduced or bounded
+- how Mid Level now behaves
+- how Mid Hit now behaves
+- how Low and High were preserved
+- how to test Mid Influence safely
