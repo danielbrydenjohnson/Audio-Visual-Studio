@@ -115,8 +115,11 @@ export interface PostEffectSettings {
   exposure:       number;
 }
 
+// Post effects start OFF: bloom must be deliberately enabled by the user. The
+// bloom shape values below are the tuned starting point the moment it's turned
+// on (and what Reset Post Effects restores); exposure 1.0 is visually neutral.
 export const DEFAULT_POST_EFFECT_SETTINGS: PostEffectSettings = {
-  bloomEnabled:   true,
+  bloomEnabled:   false,
   bloomStrength:  0.8,
   bloomRadius:    0.35,
   bloomThreshold: 0.15,

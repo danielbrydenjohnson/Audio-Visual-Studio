@@ -1,0 +1,320 @@
+Make focused UI and default-setting improvements to Audio Reactive Studio.
+
+The app is currently working. It has uploaded track mode, live input mode, Low/Mid/High level and hit analysis, visual templates, Kaleidoscope, Kaleidoscope rotation, post effects with bloom/exposure, MP4/WebM recording, and 4K output.
+
+Do not rebuild the app from scratch.
+
+Do not add new templates.
+
+Do not change audio analysis.
+
+Do not change recording architecture.
+
+Do not change the renderer architecture.
+
+GOALS
+
+Make four focused changes:
+
+1. Reduce the default visual clutter in Laser Lattice.
+2. Make Post Effects start turned off by default.
+3. Make the controls sidebar easier to use by adding collapsible sections.
+4. Make the Kaleidoscope control easier to find.
+
+CHANGE 1: LASER LATTICE DEFAULT DENSITY
+
+Laser Lattice currently has too many lasers / sticks / line particles by default.
+
+Reduce its default visual density so it loads with fewer line elements.
+
+The result should feel cleaner and less cluttered.
+
+Requirements:
+
+- Do not remove the Laser Lattice template.
+- Do not change the global Visual Density control.
+- Do not break the user's ability to increase density manually.
+- At default Visual Density, Laser Lattice should have noticeably fewer lines than before.
+- At high Visual Density, it can still become dense if the user chooses.
+- Preserve Laser Lattice's depth movement and audio-reactive behaviour.
+- Preserve Low/Mid/High hit reactions.
+- Preserve Kaleidoscope compatibility.
+- Preserve recording compatibility.
+
+The target is a cleaner default, not a weaker template.
+
+CHANGE 2: POST EFFECTS DEFAULT OFF
+
+Currently Post Effects load turned on by default.
+
+Change defaults so Post Effects start off.
+
+On initial page load:
+
+- Bloom should be off.
+- Post Effects should not visibly alter the image until the user turns them on.
+- Exposure should still have a safe default value internally, such as 1.0.
+- Post Effects controls should remain available.
+
+Add or preserve a clear Post Effects toggle if one already exists.
+
+Default:
+
+postEffectsEnabled: false
+
+or, if the current model is separate:
+
+bloomEnabled: false
+
+The user should deliberately turn Post Effects on.
+
+Reset Post Effects should restore the new default state:
+
+- Post Effects off
+- Bloom off
+- Bloom Strength default retained internally
+- Bloom Radius default retained internally
+- Bloom Threshold default retained internally
+- Exposure 1.0
+
+Do not remove the bloom controls.
+
+Do not remove exposure.
+
+Do not break recording.
+
+If Post Effects are off during recording, recording should capture the clean non-post image.
+
+If Post Effects are turned on during recording, the change should appear in the recording.
+
+CHANGE 3: COLLAPSIBLE CONTROL SECTIONS
+
+The controls sidebar now has too many buttons and sliders.
+
+Add collapsible / expandable sections for the main control groups.
+
+Suggested sections:
+
+- Audio Source
+- Audio Reaction
+- Visualizer
+- Kaleidoscope
+- Post Effects
+- Recording
+- Preview / Download if applicable
+
+Use the existing UI structure where possible.
+
+Requirements:
+
+- Each section should have a clear header.
+- Clicking the header toggles open / closed.
+- Open sections show their controls.
+- Closed sections hide their controls.
+- The collapsed state should be local UI state.
+- Do not affect the underlying settings when a section is collapsed.
+- Collapsing a section must not reset controls.
+- Controls should continue working exactly the same when expanded.
+- Recording should not be interrupted by collapsing or expanding sections.
+- Keep the UI clean and compact.
+
+Suggested default expanded state:
+
+- Audio Source: open
+- Audio Reaction: open
+- Visualizer: open
+- Kaleidoscope: closed
+- Post Effects: closed
+- Recording: open
+
+If the sidebar feels too tall, it is okay to make more sections closed by default, but do not hide essential first-use controls too aggressively.
+
+The collapsed header should still show enough information to be useful.
+
+Examples:
+
+- Audio Source
+- Audio Reaction
+- Visualizer
+- Kaleidoscope
+- Post Effects
+- Recording
+
+Use simple chevron indicators such as:
+
+- expanded: v
+- collapsed: >
+
+Do not add heavy animation unless it is already trivial.
+
+CHANGE 4: MAKE KALEIDOSCOPE EASIER TO FIND
+
+The Kaleidoscope toggle is currently hard to find.
+
+Move Kaleidoscope into its own clearly labelled section if it is currently buried inside another section.
+
+The section should be called:
+
+Kaleidoscope
+
+Make the Kaleidoscope toggle visually more noticeable.
+
+Do this tastefully.
+
+Options:
+
+- Use a subtle accent border on the Kaleidoscope section.
+- Use a slightly brighter section header.
+- Use an active-state pill when Kaleidoscope is enabled.
+- Use a small label such as "Mirrored visual effect".
+- Use a more prominent toggle style.
+
+Do not make it garish.
+
+Do not use flashing colours.
+
+Do not add loud animation.
+
+When Kaleidoscope is enabled, the section header should show an active state.
+
+For example:
+
+Kaleidoscope · On
+
+When disabled:
+
+Kaleidoscope · Off
+
+Kaleidoscope controls should remain:
+
+- Kaleidoscope toggle
+- Segments
+- Rotate
+- Direction
+- Speed
+
+Preserve all existing Kaleidoscope behaviour:
+
+- segments
+- rotation on/off
+- direction
+- speed
+- preview
+- recording
+- live changes during recording
+
+UI BEHAVIOUR DURING RECORDING
+
+Collapsible sections should remain usable during recording.
+
+Controls that are currently meant to stay live during recording should still stay live.
+
+Do not accidentally lock:
+
+- Low/Mid/High influence
+- Hit Response controls
+- Visualizer controls
+- Template selector
+- Kaleidoscope controls
+- Post Effects controls
+
+Controls that are currently locked during recording should remain locked:
+
+- Audio Source mode
+- Output Format
+- Aspect Ratio
+- Resolution
+- Frame Rate
+- uploaded file replacement
+- input device selection
+
+PRESERVE
+
+Do not break:
+
+- uploaded track mode
+- live input mode
+- microphone cleanup
+- MP3/WAV upload
+- playback
+- pause
+- seeking
+- Low/Mid/High level meters
+- Low/Mid/High hit meters
+- Hit Response controls
+- all existing templates
+- Laser Lattice movement
+- Laser Lattice hit reactions
+- Bloom / Exposure controls
+- Kaleidoscope
+- Kaleidoscope rotation
+- MP4/WebM recording
+- preview
+- download
+- 720p
+- 1080p
+- 4K
+- landscape
+- portrait
+- square
+
+VALIDATION
+
+Test Laser Lattice:
+
+1. Load Laser Lattice at default Visual Density.
+2. Confirm it has fewer lasers / sticks / line particles than before.
+3. Increase Visual Density.
+4. Confirm more lines appear.
+5. Confirm depth movement still works.
+6. Confirm Low/Mid/High hit reactions still work.
+7. Confirm Kaleidoscope still works with Laser Lattice.
+8. Record a short clip and confirm it records correctly.
+
+Test Post Effects defaults:
+
+1. Refresh the app.
+2. Confirm Post Effects are off by default.
+3. Confirm Bloom is off by default.
+4. Turn Post Effects / Bloom on manually.
+5. Confirm bloom appears.
+6. Change Bloom Strength, Radius, Threshold and Exposure.
+7. Use Reset Post Effects.
+8. Confirm Post Effects return to off.
+9. Confirm recording captures off and on states correctly.
+
+Test collapsible sections:
+
+1. Confirm the sidebar has clear collapsible sections.
+2. Collapse and expand each section.
+3. Confirm controls keep their values.
+4. Confirm collapsing a section does not reset anything.
+5. Confirm controls still work after reopening.
+6. Confirm recording is not interrupted by collapsing sections.
+7. Confirm the UI is easier to scan.
+
+Test Kaleidoscope discoverability:
+
+1. Confirm Kaleidoscope has its own clear section.
+2. Confirm the toggle is easy to find.
+3. Enable Kaleidoscope.
+4. Confirm the section/header shows an active state.
+5. Test segments.
+6. Test rotation.
+7. Test direction.
+8. Test speed.
+9. Record a short clip with Kaleidoscope on.
+
+Run TypeScript checks and fix all errors.
+
+Check browser console for runtime errors.
+
+After implementation, explain:
+
+- which files changed
+- how Laser Lattice density was reduced
+- how Post Effects defaults changed
+- how collapsible sections are implemented
+- which sections are open by default
+- how Kaleidoscope discoverability was improved
+- how recording and live controls were preserved

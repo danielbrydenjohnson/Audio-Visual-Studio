@@ -61,36 +61,35 @@ available under WebGL2 (three ≥ r163), so there's no downside.
 `LINE_FRAGMENT_SHADER`) at `highp` for parity; never mix `mediump` fragment with a
 `highp`-default vertex uniform.
 
-## Final composite: one RT → one shader for BOTH modes
-Both normal AND kaleidoscope modes render scene → persistent `WebGLRenderTarget` →
-ONE fullscreen shader → canvas. The shader branches the kaleidoscope fold on a
-`uKaleidoscope` uniform (no rebuild), then ALWAYS applies global brightness
-`out = 1 - pow(1 - c, uBrightness)` (uBrightness = brightness/100, c clamped 0..1).
-The final draw MUST target `renderer.domElement` (null RT), because `captureStream`
-records that canvas — if the last render lands on an RT, recording captures nothing.
+## Post pipeline: one persistent EffectComposer for BOTH modes (linear/HDR regime)
+Both normal AND kaleidoscope modes render through ONE EffectComposer built once:
+RenderPass → kaleidoscope/brightness ShaderPass (always enabled; branches the fold on
+a `uKaleidoscope` uniform, then applies brightness `1 - pow(1-c, uBrightness)` on the
+CLAMPED 0–1 base while HDR excess >1 is split off and re-added so bloom keeps its
+highlights) → UnrealBloomPass (`.enabled/.strength/.radius/.threshold` are per-frame
+property writes from a ref) → OutputPass. The last enabled pass renders to
+`renderer.domElement`, so `captureStream` records the post-processed canvas — if the
+last render lands on an RT, recording captures nothing.
 
-**Why routing the previously-direct normal path through the RT is safe (no color shift):**
-`THREE.ColorManagement.enabled = false` is set globally (so palette hex renders as
-authored under additive blending). With color management OFF, three does NO
-linear/sRGB conversion on output, so raw colors are written identically whether the
-bound target is the canvas or an 8-bit (default `UnsignedByteType`) RT cleared to the
-same clear color; additive overflow clamps to 1.0 in both. Hence scene→RT→passthrough
-is pixel-identical to scene→canvas, and brightness `1-pow(1-c,1)` is exact identity at
-100% — so unifying the two paths preserves the previous default look. Do NOT add a
-linear→sRGB / gamma output pass here; it would double-darken since nothing upstream
-encoded to sRGB.
+**Colour regime:** `THREE.ColorManagement.enabled = true` + ACES filmic tone mapping.
+Palette hex converts sRGB→linear at `.set()` time, the whole chain runs in linear
+light, and OutputPass applies ACES + linear→sRGB EXACTLY ONCE (it reads
+`renderer.toneMapping` / `toneMappingExposure` each render, so exposure is a live
+per-frame write). Custom raw-GLSL template shaders include no tonemapping/colorspace
+chunks, and scene materials don't tone-map when rendering to intermediate RTs — so
+nothing converts twice. (An older regime had CM disabled with a manual RT+quad; that
+advice is obsolete.)
 
-**MSAA:** rendering through an RT loses the renderer's `antialias:true` (that applies
-only to the default framebuffer), so add `samples: 4` to the `WebGLRenderTarget` to
-restore edge AA on the off-screen pass. three ≥ r163 is WebGL2-only (WebGL1 removed),
-so RT multisampling is always available wherever the app actually renders — no WebGL1
-fallback to guard.
+**Composer target:** pass a custom `WebGLRenderTarget(1,1,{type:HalfFloatType,
+samples:4})` with MirroredRepeatWrapping to the composer constructor — HalfFloat gives
+HDR headroom for additive blending/bloom, samples:4 restores MSAA lost off the default
+framebuffer, MirroredRepeat lets the kaleidoscope fold sample outside [0,1] seamlessly
+(the composer clones the target for its second buffer, wrap included).
 
-**How to apply:** resize the RT in `applyFraming` to the exact output dims (buffer NOT
-multiplied by DPR); set RT texture wrap to MirroredRepeat so radial samples outside
-[0,1] fold seamlessly; per-frame updates are plain uniform writes
-(uKaleidoscope/uSegments/uBrightness) — no shader rebuild, no per-frame allocation;
-dispose RT/quad geo/material only at unmount, never on toggle.
+**How to apply:** `composer.setSize(outW,outH)` in framing (exact output dims, DPR
+never multiplied in; it fans out to every pass incl. bloom's internal mips); all
+per-frame updates are plain uniform/property writes — never rebuild composer or
+passes; on unmount dispose each pass AND `composer.dispose()` (frees rt1/rt2).
 
 ## GLSL ES 1.0 uniform-array indexing gotcha
 Three.js `ShaderMaterial` defaults to GLSL ES 1.00, which forbids indexing a

@@ -31,7 +31,12 @@ import type { DensityLevel } from "@/types/visualizer";
  *   HIGH hit → fast-reshuffling subset (~24 Hz) flickers hard with a tip streak
  */
 
-const COUNTS: Record<DensityLevel, number> = { low: 300, medium: 800, high: 1500 };
+// Deliberately sparser defaults than other templates: line segments read as
+// clutter much faster than points, so low/medium load with far fewer elements
+// for a cleaner look, while "high" keeps the old dense ceiling for users who
+// want it. Only the counts change — movement, hit reactions, kaleidoscope and
+// recording behaviour are untouched.
+const COUNTS: Record<DensityLevel, number> = { low: 150, medium: 380, high: 1500 };
 
 const VERTEX_BODY = /* glsl */ `
   attribute vec3  aDir;

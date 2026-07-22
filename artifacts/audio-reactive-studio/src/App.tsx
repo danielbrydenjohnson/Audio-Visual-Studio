@@ -237,6 +237,69 @@ function SectionDivider() {
   return <div className="border-t border-border/30 -mx-1" />;
 }
 
+// ─── CollapsibleSection — sidebar section with a click-to-toggle header ───────
+// Open/closed is LOCAL UI state only: collapsing hides the controls with CSS
+// (`hidden`) while keeping them mounted, so no control loses value or resets and
+// nothing (including an active recording) is interrupted by toggling.
+
+interface CollapsibleSectionProps {
+  title:        string;
+  /** Tailwind bg class for the small accent tick next to the title. */
+  accentClass?: string;
+  defaultOpen?: boolean;
+  /** Small status element rendered next to the title (e.g. an On/Off pill). */
+  badge?:       React.ReactNode;
+  /** Right-aligned header actions (e.g. a Reset button); clicks don't toggle. */
+  actions?:     React.ReactNode;
+  /** One-line hint shown under the header even while collapsed. */
+  subtitle?:    string;
+  /** Subtle accent border/tint around the whole section (used for Kaleidoscope). */
+  highlight?:   boolean;
+  children:     React.ReactNode;
+}
+
+function CollapsibleSection({
+  title, accentClass = "bg-primary/70", defaultOpen = true,
+  badge, actions, subtitle, highlight = false, children,
+}: CollapsibleSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className={highlight ? "rounded-lg border border-primary/25 bg-primary/[0.04] px-3 py-3 -mx-1" : ""}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(o => !o); }
+        }}
+        className="flex items-center justify-between cursor-pointer select-none"
+        title={open ? `Collapse ${title}` : `Expand ${title}`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span aria-hidden className="text-[10px] font-mono text-muted-foreground w-2.5 shrink-0">
+            {open ? "v" : ">"}
+          </span>
+          <div className={`w-1 h-3 rounded-full shrink-0 ${accentClass}`} />
+          <h3 className="text-sm font-medium text-foreground truncate">{title}</h3>
+          {badge}
+        </div>
+        {/* Actions must not toggle the section. */}
+        {actions && (
+          <div className="shrink-0" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+            {actions}
+          </div>
+        )}
+      </div>
+      {subtitle && (
+        <p className="mt-1 pl-[26px] text-[10px] font-mono text-muted-foreground/70">{subtitle}</p>
+      )}
+      {/* Kept mounted when closed — hidden via CSS so values/state are untouched. */}
+      <div className={open ? "mt-4" : "hidden"}>{children}</div>
+    </section>
+  );
+}
+
 // ─── TemplateSelector — selectable cards for the three visual templates ───────
 
 interface TemplateSelectorProps {
@@ -574,13 +637,12 @@ function App() {
 
           <div className="flex-1 overflow-y-auto p-5 space-y-7">
 
-            {/* ── Audio Reaction Section ── */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-1 h-3 bg-primary/70 rounded-full" />
-                  <h3 className="text-sm font-medium text-foreground">Audio Reaction</h3>
-                </div>
+            {/* ── Audio Reaction Section (collapsible, open by default) ── */}
+            <CollapsibleSection
+              title="Audio Reaction"
+              accentClass="bg-primary/70"
+              defaultOpen
+              actions={
                 <button
                   type="button"
                   onClick={() => setSettings(DEFAULT_SETTINGS)}
@@ -589,8 +651,8 @@ function App() {
                 >
                   Reset Audio
                 </button>
-              </div>
-
+              }
+            >
               <div className="space-y-4">
                 <BandSlider label="Low Influence"  dot={BAND_DOTS.low}  value={settings.low}  onChange={v => setSetting("low",  v)} />
                 <BandSlider label="Mid Influence"  dot={BAND_DOTS.mid}  value={settings.mid}  onChange={v => setSetting("mid",  v)} />
@@ -642,25 +704,26 @@ function App() {
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* ── Visualizer Section ── */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-1 h-3 bg-chart-2/70 rounded-full" />
-                  <h3 className="text-sm font-medium text-foreground">Visualizer</h3>
-                </div>
+            {/* ── Visualizer Section (collapsible, open by default) ── */}
+            <CollapsibleSection
+              title="Visualizer"
+              accentClass="bg-chart-2/70"
+              defaultOpen
+              actions={
                 <button
                   type="button"
                   onClick={() => setVisualSettings(DEFAULT_VISUAL_SETTINGS)}
                   className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
-                  title="Reset all visual settings to defaults"
+                  title="Reset all visual settings to defaults (includes Kaleidoscope)"
                 >
                   Reset Visuals
                 </button>
-              </div>
+              }
+            >
 
+              <div className="space-y-4">
               {/* Template selector — locked while recording so the visual can't
                   change halfway through a capture. */}
               <TemplateSelector
@@ -738,6 +801,34 @@ function App() {
                   onChange={v => setVisual("brightness", v)}
                 />
 
+              </div>
+              </div>
+            </CollapsibleSection>
+
+            {/* ── Kaleidoscope Section — own collapsible (closed by default) with
+                a subtle accent border and an On/Off pill in the header so the
+                mirrored effect is easy to find. Settings still live in
+                visualSettings (so Reset Visuals covers them, exactly as before);
+                collapsing hides controls without touching any value. */}
+            <CollapsibleSection
+              title="Kaleidoscope"
+              accentClass="bg-chart-3/80"
+              defaultOpen={false}
+              highlight
+              subtitle="Mirrored visual effect"
+              badge={
+                <span
+                  className={`ml-1 rounded-full border px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider shrink-0 ${
+                    visualSettings.kaleidoscope
+                      ? "border-primary/50 bg-primary/20 text-primary"
+                      : "border-border/50 bg-muted/40 text-muted-foreground"
+                  }`}
+                >
+                  {visualSettings.kaleidoscope ? "On" : "Off"}
+                </span>
+              }
+            >
+              <div className="space-y-4">
                 <ControlToggle
                   label="Kaleidoscope"
                   value={visualSettings.kaleidoscope}
@@ -796,30 +887,30 @@ function App() {
                   </>
                 )}
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* ── Post Effects Section ──
+            {/* ── Post Effects Section (collapsible, CLOSED + bloom OFF by default) ──
                 Bloom + exposure — applied by the post-processing stack after the
                 scene (and kaleidoscope) render. Separate state from visual
-                settings: Reset Post Effects restores ONLY these five values, and
-                Reset Visuals never touches them. Editable at all times, including
-                during recording (live pass-property writes, recorder untouched). */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-1 h-3 bg-chart-4/70 rounded-full" />
-                  <h3 className="text-sm font-medium text-foreground">Post Effects</h3>
-                </div>
+                settings: Reset Post Effects restores ONLY these five values
+                (bloom back OFF, exposure 1.0), and Reset Visuals never touches
+                them. Editable at all times, including during recording (live
+                pass-property writes, recorder untouched). */}
+            <CollapsibleSection
+              title="Post Effects"
+              accentClass="bg-chart-4/70"
+              defaultOpen={false}
+              actions={
                 <button
                   type="button"
                   onClick={() => setPostEffects(DEFAULT_POST_EFFECT_SETTINGS)}
                   className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider"
-                  title="Reset bloom and exposure to defaults (no other settings are affected)"
+                  title="Reset post effects to defaults: bloom off, exposure 1.0 (no other settings are affected)"
                 >
                   Reset Post Effects
                 </button>
-              </div>
-
+              }
+            >
               <div className="space-y-4">
                 <ControlToggle
                   label="Bloom"
@@ -867,9 +958,16 @@ function App() {
                   onChange={v => setPost("exposure", v)}
                 />
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* ── Output / Recording Section ── */}
+            {/* ── Output / Recording Section (collapsible, open by default).
+                Collapsing only hides the panel via CSS — the recorder hook lives
+                in App, so an active recording is never interrupted. */}
+            <CollapsibleSection
+              title="Recording"
+              accentClass="bg-chart-5/70"
+              defaultOpen
+            >
             <RecordingPanel
               recorder={recorder}
               notReadyHint={isLive ? "Start Live Input to enable recording" : undefined}
@@ -967,6 +1065,7 @@ function App() {
                 )}
               </div>
             </RecordingPanel>
+            </CollapsibleSection>
 
           </div>
         </aside>
