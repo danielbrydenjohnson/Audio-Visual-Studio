@@ -8,7 +8,7 @@ interface MeterConfig {
 }
 
 const METERS: MeterConfig[] = [
-  { key: "low",  label: "Low",  range: "20–150 Hz",   colorClass: "bg-primary" },
+  { key: "low",  label: "Low",  range: "20–100 Hz",   colorClass: "bg-primary" },
   { key: "mid",  label: "Mid",  range: "350–4k Hz",   colorClass: "bg-chart-2" },
   { key: "high", label: "High", range: "4k–16k Hz",   colorClass: "bg-chart-3" },
 ];

@@ -30,7 +30,9 @@ import { DENSITY_COUNTS } from "@/types/visualizer";
  * All motion is GPU-driven from per-vertex attributes — nothing is scaled or
  * rotated as a whole object.
  *
- *   LOW  → low-tuned nodes push outward along their own radial + swell in size
+ *   LOW  → the WHOLE spiral breathes — a coherent radial expansion about the
+ *          centre (for this template a whole-structure breath is the intended
+ *          Low behaviour; the golden arrangement stays perfectly recognisable)
  *   MID  → local twist about the axis, amount depends on each node's radius, so
  *          inner and outer arm sections bend differently (waves along the arms)
  *   HIGH → a changing subset of high-tuned nodes sparkles at the arm beads/tips
@@ -38,7 +40,8 @@ import { DENSITY_COUNTS } from "@/types/visualizer";
  * Hit envelopes (transients) on top, per node (arms follow automatically since
  * line endpoints share the same displacement):
  *
- *   LOW hit  → a static ~55 % subset of nodes punches outward + size pop
+ *   LOW hit  → the full spiral expands outward and eases back in with the
+ *              envelope (radial breathing) + a subtle size pop on the beads
  *   MID hit  → a sharper, faster twist wave races along the arms
  *   HIGH hit → fast-reshuffling sparkle subset (~24 Hz) on the beads
  *
@@ -85,19 +88,22 @@ const DISPLACE_FN = /* glsl */ `
     float cs = cos(twist), sn = sin(twist);
     p.xy = mat2(cs, -sn, sn, cs) * p.xy;
 
-    // LOW: push outward along this node's own spiral radial + gentle forward
-    // swell. LOW hits punch a static ~55 % subset of nodes further out for an
-    // instant (the arms ripple, never the whole disc as one).
-    float lowGate = step(0.45, fract(seed * 0.731));
-    p.xy += radial * (low * (uVolume.x * 0.10) + lowHit * lowGate * (uVolume.x * 0.07));
-    p.z  += low * (uVolume.z * 0.10) + lowHit * lowGate * (uVolume.z * 0.05);
+    // LOW: coherent radial breathing — the WHOLE spiral expands outward and
+    // eases back in about its centre (a whole-structure breath is the intended
+    // Low behaviour for this template). Scaling xy dilates every node's radius
+    // proportionally, so the golden arrangement stays perfectly recognisable
+    // while it breathes; a slight per-node phase term keeps the motion organic
+    // without breaking coherence. Bounded even at 200% influence.
+    float breathe = 1.0 + low * 0.085 + lowHit * 0.125 * (0.92 + 0.16 * sin(phase));
+    p.xy *= breathe;
+    p.z  += low * (uVolume.z * 0.05) + lowHit * (uVolume.z * 0.035);
 
     // HIGH: sparkle among a changing subset (own seed + speed decorrelates them).
     // HIGH hits light an independent, fast-reshuffling subset (~24 Hz).
     float tw = fract(sin(seed * 91.17 + uTime * (5.0 + moveSpeed * 6.0)) * 43758.5453);
     float twHit = fract(sin(seed * 23.7 + floor(uTime * 24.0) * 11.3) * 43758.5453);
     outSparkle = high * step(0.68, tw) + highHit * step(0.58, twHit);
-    outLow = low + lowHit * lowGate * 0.8; // size/brightness pop rides the low path
+    outLow = low * 0.7 + lowHit * 0.5; // subtle bead size/brightness pop with the breath
     outMid = mid;
     return p;
   }

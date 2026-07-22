@@ -32,16 +32,19 @@ import type { DensityLevel } from "@/types/visualizer";
  * faster than outer ones (like a real galaxy), so the arms shear and flow
  * locally rather than spinning as one rigid object.
  *
- *   LOW  → low-tuned stars swell + brighten and push outward along their local
- *          arm radial; low-tuned dust accelerates through depth
+ *   LOW  → radial separation: stars push outward from the galactic centre
+ *          (proportional to their own radius, varied per star) so space opens
+ *          between neighbours; nodes swell slightly; low-tuned dust
+ *          accelerates through depth
  *   MID  → bending waves travel along the arms (angle offset depends on each
  *          star's own radius, so different arm sections bend differently)
  *   HIGH → a changing subset of stars/dust sparkles and flares independently
  *
  * Hit envelopes (transients) on top, per element:
  *
- *   LOW hit  → a static ~half subset kicks outward + surges through depth
- *              (dust accelerates hardest via its higher aFwd) + size pop
+ *   LOW hit  → the disc briefly dilates — every star pushes outward with
+ *              per-star (seed) variation, surges through depth (dust hardest
+ *              via its higher aFwd) + a slight size pop, then settles back
  *   MID hit  → a sharper, faster swirl wave races along the arms
  *   HIGH hit → fast-reshuffling twinkle subset (~24 Hz); bright nodes flare most
  *
@@ -92,10 +95,13 @@ const VERTEX_BODY = /* glsl */ `
     ang += sin(aRadius * 0.15 - uTime * 1.2 + aPhase) * mid * 0.30;
     ang += sin(aRadius * 0.32 - uTime * 2.6 + aPhase * 1.7) * midHit * 0.22;
 
-    // LOW: push outward along the local arm radial. LOW hits kick a static
-    // ~half subset further out for an instant (arms ripple, disc stays intact).
-    float kickGate = step(0.5, fract(aSeed * 0.517));
-    float r = aRadius + low * (uVolume.x * 0.07) + lowHit * kickGate * (uVolume.x * 0.05);
+    // LOW: radial separation — every star pushes outward from the galactic
+    // centre proportionally to its own radius, so kick pressure dilates the
+    // disc and opens space between neighbours while the arm shapes stay
+    // recognisable. Per-star magnitude varies via seed (organic — never a
+    // rigid root scale); the envelope eases everything back after the kick.
+    float kickVary = 0.7 + 0.6 * fract(aSeed * 0.517);
+    float r = aRadius * (1.0 + low * 0.07 + lowHit * kickVary * 0.055);
 
     vec3 p;
     p.x = cos(ang) * r;
@@ -106,7 +112,7 @@ const VERTEX_BODY = /* glsl */ `
     // LOW hits surge the gated subset (dust hardest — higher aFwd) briefly.
     float halfLen = uVolume.z;
     float z = position.z + uTime * uSpeed * (3.0 + aFwd * 9.0) + low * aFwd * 5.0
-            + lowHit * kickGate * aFwd * 7.0;
+            + lowHit * kickVary * aFwd * 7.0;
     p.z = mod(z + halfLen, 2.0 * halfLen) - halfLen;
 
     // Resting micro-drift — alive even at 0% influence.
@@ -125,8 +131,9 @@ const VERTEX_BODY = /* glsl */ `
     float twHit = fract(sin(aSeed * 41.9 + floor(uTime * 24.0) * 9.71) * 43758.5453);
     float sparkleHit = highHit * step(0.62, twHit) * (0.6 + aBaseBright * 0.7);
 
+    // LOW size lift stays slight — the separation is the primary Low effect.
     float size = aBaseSize * uElementSize
-               * (1.0 + low * 0.85 + lowHit * kickGate * 0.5 + sparkle * 1.7 + sparkleHit * 1.4);
+               * (1.0 + low * 0.55 + lowHit * kickVary * 0.4 + sparkle * 1.7 + sparkleHit * 1.4);
     gl_PointSize = clamp(size * uPixelScale / dist, 1.0, 64.0);
     gl_Position  = projectionMatrix * mv;
 
@@ -134,12 +141,12 @@ const VERTEX_BODY = /* glsl */ `
     col *= (0.55 + depthF * 0.65);   // nearer = brighter (depth cue)
     col *= aBaseBright;
     col += col * mid * 0.45;         // MID adds energy
-    col *= (1.0 + lowHit * kickGate * 0.35); // LOW hit: brightness punch
+    col *= (1.0 + lowHit * kickVary * 0.3);  // LOW hit: modest brightness lift
     col += vec3(sparkle) * 0.95;     // HIGH flare
     col += vec3(sparkleHit) * 1.0;   // HIGH hit twinkle
     col *= (0.75 + uGlow * 0.85);    // Glow lifts luminosity
     vColor   = col;
-    vOpacity = clamp(aBaseBright * (0.35 + depthF * 0.65) + low * 0.20 + lowHit * kickGate * 0.30 + sparkle * 0.85 + sparkleHit * 0.70, 0.0, 1.0);
+    vOpacity = clamp(aBaseBright * (0.35 + depthF * 0.65) + low * 0.20 + lowHit * kickVary * 0.25 + sparkle * 0.85 + sparkleHit * 0.70, 0.0, 1.0);
   }
 `;
 

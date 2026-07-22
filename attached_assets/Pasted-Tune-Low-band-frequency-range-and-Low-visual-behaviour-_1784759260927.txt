@@ -1,0 +1,494 @@
+Tune Low band frequency range and Low visual behaviour across Audio Reactive Studio templates.
+
+The app is currently working. It has uploaded track mode, live input mode, Low/Mid/High level and hit analysis, Hit Response controls, collapsible UI sections, visual templates, Kaleidoscope, post effects, recording, and output settings.
+
+Do not rebuild the app from scratch.
+
+Do not change recording architecture.
+
+Do not change Kaleidoscope architecture.
+
+Do not change post effects.
+
+Do not change Mid or High visual behaviour unless needed to avoid conflicts with the Low changes.
+
+GOAL
+
+Make Low feel tighter, more physical, and more spatial.
+
+Low should now mean:
+
+- true kick/sub pressure
+- physical separation
+- expansion
+- breathing
+- space opening up between elements
+
+Low should not mainly mean random brightness, chaotic movement, or whole-scene shaking.
+
+CHANGE 1: LOW FREQUENCY RANGE
+
+Update the audio frequency bands.
+
+New ranges:
+
+Low:
+20 Hz to 100 Hz
+
+Ignored gap:
+100 Hz to 350 Hz
+
+Mid:
+350 Hz to 4,000 Hz
+
+High:
+4,000 Hz to 16,000 Hz
+
+The 100 Hz to 350 Hz range should not feed Low, Mid, or High.
+
+This gap is intentional.
+
+Update the central frequency band definitions only.
+
+Do not hardcode FFT bin numbers.
+
+Continue deriving bin indices from:
+
+- AudioContext sample rate
+- fftSize
+- frequency range in Hz
+
+Both audio modes must use the new ranges:
+
+- uploaded track mode
+- live input mode
+
+Both signal types must use the new ranges:
+
+- level
+- hit / spectral flux
+
+If UI labels show old ranges, update them.
+
+Expected UI labels:
+
+Low: 20-100 Hz
+Mid: 350-4,000 Hz
+High: 4,000-16,000 Hz
+
+Because Low now has fewer bins, lightly check level and hit sensitivity if needed.
+
+Do not add new sensitivity controls.
+
+Low should still respond clearly to kick and sub-heavy bass.
+
+CHANGE 2: LOW BEHAVIOUR PRINCIPLE
+
+Retune Low mapping across templates.
+
+Low should generally create:
+
+- separation between elements
+- expansion of forms
+- spatial breathing
+- outward pressure
+- deeper spacing
+- physical punch
+
+Low should not make templates chaotic.
+
+Low should not flash the whole scene.
+
+Low should not rotate the whole root as the main effect.
+
+Low should not simply brighten everything.
+
+At Low Influence 100%:
+
+- Low should be clearly visible on kick/sub hits
+- the template should remain composed
+
+At Low Influence 200%:
+
+- Low should feel strong and physical
+- the template should still remain usable
+
+At Low Influence 0%:
+
+- Low should have no visible effect
+- resting animation should continue
+
+TEMPLATE-SPECIFIC CHANGES
+
+Apply the following Low behaviour changes.
+
+CUBE SWARM
+
+The user may refer to this as Cube Storm, but the existing template is Cube Swarm.
+
+Low behaviour should change so the cubes move away from each other.
+
+Desired behaviour:
+
+- On Low Hit, cubes should create more space between themselves.
+- Cubes should push outward from the swarm center, or away from their local cluster center.
+- The effect should feel like the swarm briefly expands.
+- Cubes should not all move identically.
+- Preserve cube tumbling and existing Mid/High behaviour.
+- Avoid making the whole root scale uniformly.
+
+Implementation idea:
+
+- Store each cube's base position or base radial direction.
+- Add a bounded Low offset along each cube's outward direction.
+- Use Low Hit for punch and Low Level for slower pressure.
+- Let the offset decay naturally as the hit envelope decays.
+
+LASER LATTICE
+
+Low behaviour should make the lines move away from each other and create space.
+
+Desired behaviour:
+
+- On Low Hit, line groups should separate more clearly.
+- Lines should spread outward from the center or from their local lanes.
+- The lattice should feel like it opens up under kick pressure.
+- Preserve the depth travel.
+- Preserve the cleaner reduced default density.
+- Do not make the lines chaotic.
+- Do not just brighten all lines.
+
+Implementation idea:
+
+- Give each line or line group an outward lane direction.
+- Add a bounded Low separation offset.
+- Low Hit creates quick spacing.
+- Low Level creates slower pressure.
+
+WIREFRAME BLOOM
+
+Make two changes.
+
+First, reduce the structure to only three primary shapes.
+
+The template should contain exactly these three main wireframe forms:
+
+1. A donut / torus-like wireframe form
+2. A diamond-type wireframe form
+3. An octahedron wireframe form
+
+Do not keep lots of extra shapes or many nested forms.
+
+There are currently too many shapes.
+
+Simplify the composition so the three forms are clear and readable.
+
+Second, Low behaviour should expand the shapes in size.
+
+Desired Low behaviour:
+
+- On Low Hit, each of the three shapes expands slightly.
+- The expansion can differ per shape.
+- The expansion should feel like a breathing pulse.
+- Do not explode the structure.
+- Do not add more shapes.
+- Preserve the wireframe look.
+- Preserve Mid/High behaviour, but make sure it still works with the simplified three-shape structure.
+
+Implementation idea:
+
+- Each primary shape has a base scale.
+- Low Hit adds a temporary scale expansion.
+- Low Level can add very subtle breathing pressure.
+- Keep expansion bounded.
+
+FIBONACCI SPIRAL
+
+Low behaviour should make the whole spiral breathe.
+
+Desired behaviour:
+
+- On Low Hit, the full Fibonacci spiral should breathe outward and inward.
+- The spiral should expand as a coherent structure.
+- The golden spiral should remain recognisable.
+- This is one case where a whole-structure breathing effect is acceptable because it matches the user's request.
+- Keep it elegant and bounded.
+- Do not distort it beyond recognition.
+- Preserve Mid ripple and High sparkle.
+
+Implementation idea:
+
+- Apply a bounded radial breathing multiplier to node positions around the spiral center.
+- Use Low Hit for punch.
+- Use Low Level for subtle sustained pressure.
+- Avoid harsh snapping.
+
+SACRED GEOMETRY BLOOM
+
+Make two changes.
+
+First, remove the square surrounding the sacred geometry bloom shape.
+
+There is currently a square frame around the sacred geometry.
+
+Remove that square.
+
+The template should focus on the circular sacred geometry forms.
+
+Second, Low behaviour should expand the circles.
+
+Desired Low behaviour:
+
+- On Low Hit, circles should expand outward.
+- The expansion should feel like circular breathing.
+- The central sacred geometry should remain readable.
+- Do not add a replacement square.
+- Preserve symmetry.
+- Preserve Mid/High behaviour.
+
+Implementation idea:
+
+- Identify the circle/ring elements.
+- Add bounded radius or scale expansion based on Low Hit.
+- Inner and outer circles can expand by slightly different amounts.
+- Keep it clean.
+
+GOLDEN GALAXY
+
+Low behaviour should increase the size of the circular/star elements slightly and also create more space between them.
+
+Desired behaviour:
+
+- On Low Hit, star/circle nodes should become slightly larger.
+- Nodes should move away from each other or outward from the galaxy center.
+- The galaxy should briefly open up, like pressure moving through the spiral arms.
+- The galaxy spiral arms should remain recognisable.
+- Do not make the galaxy explode.
+- Preserve depth travel, Mid swirl, and High twinkle.
+
+Implementation idea:
+
+- Add a bounded radial separation offset from the galaxy center.
+- Add a small size increase for star/circle nodes.
+- Vary response by star seed or arm affinity.
+- Keep the effect subtle but visible.
+
+WIREFRAME CORE
+
+Do not change Wireframe Core.
+
+Preserve current Wireframe Core behaviour.
+
+No Low retuning is required for this template.
+
+SILK LINES
+
+Low behaviour should make the lines move away from each other.
+
+Desired behaviour:
+
+- On Low Hit, the lines should separate spatially.
+- Each line should move away from the center or away from neighbouring lines.
+- The template should remain calm and minimal.
+- Do not make the lines chaotic.
+- Preserve Mid ripple and High glints.
+
+Implementation idea:
+
+- Give each line a base offset direction.
+- Add a bounded Low separation offset.
+- Low Hit creates a quick push.
+- Low Level creates subtle spacing pressure.
+
+ORBITAL THREADS
+
+Make two changes.
+
+First, add an additional sphere in the middle of each line.
+
+Each line should now have:
+
+- one sphere at the start
+- one sphere at the middle
+- one sphere at the end
+
+The middle sphere should stay attached to the line's midpoint.
+
+It should move naturally with the line.
+
+It should be small and elegant like the endpoint spheres.
+
+For density:
+
+- Low density = 3 lines and 9 spheres
+- Medium density = 6 lines and 18 spheres
+- High density = 9 lines and 27 spheres
+
+Second, Low behaviour should make the lines move away from each other.
+
+Desired behaviour:
+
+- On Low Hit, lines and their attached spheres should separate spatially.
+- The spheres should remain attached to their line positions.
+- The template should remain elegant and minimal.
+- Do not let the spheres detach or lag incorrectly.
+- Preserve Mid ripple and High glints.
+
+Implementation idea:
+
+- Give each line a base separation direction.
+- Apply Low separation to the line and all three attached spheres consistently.
+- Compute or update start, middle, and end sphere positions from the actual line endpoints and midpoint.
+- Keep Low movement bounded.
+
+PRESERVE MID AND HIGH
+
+Do not undo the recent Mid tuning.
+
+Mid should remain controlled, bounded, and expressive.
+
+High should remain sparkly and detailed.
+
+This task is primarily Low frequency range and Low movement mapping.
+
+PRESERVE UI
+
+Do not add new controls in this task.
+
+Do not rename existing controls.
+
+Do not change collapsible section behaviour.
+
+Do not change Post Effects defaults.
+
+Do not change Kaleidoscope discoverability.
+
+Do not change recording controls.
+
+COMPATIBILITY
+
+All updated templates must still work with:
+
+- uploaded track mode
+- live input mode
+- Low/Mid/High level and hit meters
+- Hit Response controls
+- Low/Mid/High influence sliders
+- Kaleidoscope on/off
+- Kaleidoscope segments
+- Kaleidoscope rotation
+- Post Effects off
+- Bloom on
+- MP4 recording
+- WebM recording
+- 720p
+- 1080p
+- 4K
+- landscape
+- portrait
+- square
+
+Do not create:
+
+- another renderer
+- another visible canvas
+- another scene
+- another camera
+- another animation loop
+
+VALIDATION
+
+Test frequency ranges:
+
+1. Confirm the central band definitions now use Low 20-100 Hz.
+2. Confirm 100-350 Hz is ignored.
+3. Confirm Mid starts at 350 Hz.
+4. Confirm High remains 4,000-16,000 Hz.
+5. Confirm UI labels are updated if they display ranges.
+
+Test Low isolation:
+
+For each relevant template:
+
+1. Set Low Influence to 200%.
+2. Set Mid Influence to 0%.
+3. Set High Influence to 0%.
+4. Play a kick/sub-heavy track.
+5. Confirm Low behaviour matches the requested mapping.
+6. Set Low Influence to 0%.
+7. Confirm Low no longer affects the visual.
+8. Confirm resting animation continues.
+
+Template validation:
+
+Cube Swarm:
+- cubes move away from each other on Low.
+
+Laser Lattice:
+- lines move away from each other and create space on Low.
+
+Wireframe Bloom:
+- only three primary wireframe forms are present.
+- forms are torus/donut, diamond-type, and octahedron.
+- forms expand in size on Low.
+
+Fibonacci Spiral:
+- the whole spiral breathes on Low.
+
+Sacred Geometry Bloom:
+- square frame is removed.
+- circles expand on Low.
+
+Golden Galaxy:
+- star/circle nodes grow slightly on Low.
+- nodes move apart or create more space on Low.
+
+Wireframe Core:
+- unchanged.
+
+Silk Lines:
+- lines move away from each other on Low.
+
+Orbital Threads:
+- each line has start, middle, and end spheres.
+- lines move away from each other on Low.
+- all spheres stay attached to the line.
+
+Test combined behaviour:
+
+1. Set Low/Mid/High all to 100%.
+2. Confirm visuals still feel balanced.
+3. Confirm Low now feels tighter and more physical.
+4. Confirm Mid remains controlled.
+5. Confirm High remains sparkly.
+
+Test recording:
+
+1. Record a short uploaded-track clip.
+2. Confirm Low movements are captured.
+3. Record a short live-input clip.
+4. Confirm Low movements are captured.
+5. Confirm MP4/WebM export still works.
+
+Test stability:
+
+1. Switch templates repeatedly.
+2. Toggle Kaleidoscope.
+3. Toggle Post Effects.
+4. Change Visual Density.
+5. Test Silk Lines and Orbital Threads at low, medium and high density.
+6. Confirm no runtime errors.
+7. Run TypeScript checks.
+8. Fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- where the Low frequency range was changed
+- how the 100-350 Hz ignored gap is handled
+- how Low sensitivity was adjusted, if at all
+- how Low now affects each template
+- how Wireframe Bloom was simplified to three shapes
+- how the Sacred Geometry square was removed
+- how Orbital Threads midpoint spheres were added
+- how Mid and High behaviour were preserved

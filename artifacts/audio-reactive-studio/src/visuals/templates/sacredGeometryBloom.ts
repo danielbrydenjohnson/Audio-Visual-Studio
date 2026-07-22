@@ -28,6 +28,8 @@ import type { DensityLevel } from "@/types/visualizer";
  *   HIGH hit → fast-reshuffling subset of layers glints for an instant
  *
  * Uses only generic geometric constructions — no copyrighted iconography.
+ * There is deliberately NO square/rectangular frame around the composition —
+ * the polygon family skips 4-sided rings so circular forms stay the focus.
  */
 
 const LAYERS: Record<DensityLevel, number> = { low: 6, medium: 10, high: 15 };
@@ -99,7 +101,9 @@ function layerGeometry(i: number, r: number): THREE.BufferGeometry {
     case 1:  return ringSegments(r, 6);                  // hexagon
     case 2:  return starSegments(r, 12, 5);              // 12-point star ring
     case 3:  return flowerSegments(r * 0.5, 6);          // flower-of-life cluster
-    default: return ringSegments(r, 3 + (i % 4));        // rotating polygon family
+    // Polygon family: triangle / pentagon / hexagon — never 4 sides. The square
+    // outer frame was removed by request; circular forms stay the focus.
+    default: return ringSegments(r, [3, 5, 6][i % 3]);
   }
 }
 
@@ -193,10 +197,11 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         L.seg.rotation.z = L.rotPhase + time * speed * L.rotRate * (1 + midR * 0.4) + L.hitRot * rotDir;
 
         // LOW: each layer breathes on its own phase (local radial pulse). LOW
-        // hits punch inner layers hardest, so the kick blooms outward from the
-        // centre instead of scaling the whole scene uniformly.
+        // hits expand the circles outward — inner layers punch slightly harder
+        // than outer ones (1 - cmix), so the kick blooms from the centre and
+        // symmetry is preserved; never one uniform scene scale.
         const breathe = 1 + Math.sin(time * L.pulseSpeed + L.pulsePhase) * L.pulseAmp;
-        const s = esize * breathe * (1 + lowR * 0.4 + lowHitR * (0.28 + 0.27 * (1 - L.cmix)) + flick * 0.18 + spark * 0.1);
+        const s = esize * breathe * (1 + lowR * 0.45 + lowHitR * (0.32 + 0.28 * (1 - L.cmix)) + flick * 0.18 + spark * 0.1);
         L.seg.scale.set(s, s, s);
 
         L.seg.position.set(0, 0, Math.max(-hd, Math.min(hd, L.posZ)));

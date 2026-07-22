@@ -18,15 +18,17 @@ import type { DensityLevel } from "@/types/visualizer";
  * attributes; both endpoints of a segment share segment data and differ only by an
  * endpoint sign (aEnd = ±0.5), so the shader places them around a moving midpoint.
  *
- *   LOW  → individual segments lengthen + accelerate through depth (brighter/longer,
- *          since reliable WebGL line width isn't available)
+ *   LOW  → segments spread OUTWARD from the lattice centre along their own XY
+ *          lanes (space opens between line groups) + lengthen and accelerate
+ *          through depth
  *   MID  → per-segment endpoint bend / local directional waves (no global rotation)
  *   HIGH → a changing subset flashes + gets a brief forward length streak
  *
  * Hit envelopes (transients) on top, always per-segment:
  *
- *   LOW hit  → all segments pulse brighter/longer; a static ~half subset also
- *              surges forward through depth for an instant
+ *   LOW hit  → quick lane-separation punch (per-segment magnitude varies) + a
+ *              length pulse; a static ~half subset also surges forward through
+ *              depth for an instant
  *   MID hit  → sharp higher-frequency kink in the bend direction (local snap)
  *   HIGH hit → fast-reshuffling subset (~24 Hz) flickers hard with a tip streak
  */
@@ -69,9 +71,19 @@ const VERTEX_BODY = /* glsl */ `
     m.z += lowHit * surgeGate * (7.0 + aFwd * 12.0);
     m.z = mod(m.z + halfLen, 2.0 * halfLen) - halfLen;
 
+    // LOW: lane separation — each segment pushes outward from the lattice centre
+    // along its own XY radial "lane", so kick pressure opens space between line
+    // groups. Per-segment magnitude varies via seed (the lattice never scales as
+    // one object); level = slow spreading pressure, hit = quick spacing that
+    // eases back with the envelope. Depth travel above is untouched.
+    vec2 laneDir = m.xy / max(length(m.xy), 0.001);
+    float sepVary = 0.6 + 0.8 * fract(seed * 0.371);
+    m.xy += laneDir * sepVary * (low * (uVolume.x * 0.09) + lowHit * (uVolume.x * 0.065));
+
     // Length grows with LOW level; LOW hits pulse it (longer reads as thicker
-    // under additive glow, the closest thing to line width WebGL offers).
-    float len = aLen * (0.55 + uElementSize * 0.9) * (1.0 + low * 1.0 + lowHit * 0.45);
+    // under additive glow, the closest thing to line width WebGL offers). Kept
+    // moderate so the lane separation reads as the primary Low effect.
+    float len = aLen * (0.55 + uElementSize * 0.9) * (1.0 + low * 0.7 + lowHit * 0.4);
 
     // Direction bends with MID (endpoint movement / local waves); MID hits add
     // a sharper, higher-frequency kink that snaps in and eases out.
@@ -105,12 +117,12 @@ const VERTEX_BODY = /* glsl */ `
     col *= (0.45 + depthF * 0.75);
     col *= baseBright;
     col += col * mid * 0.5;        // MID adds energy
-    col *= (1.0 + lowHit * 0.55);  // LOW hit: brightness pulse on the kick
+    col *= (1.0 + lowHit * 0.4);   // LOW hit: modest brightness pulse (movement leads)
     col += vec3(flash) * 0.9;      // HIGH flash
     col += vec3(flashHit) * 1.0;   // HIGH hit: sharp flicker subset
     col *= (0.75 + uGlow * 0.9);   // Glow lifts overall brightness
     vColor = col;
-    vOpacity = clamp(0.4 * depthF + low * 0.35 + lowHit * 0.4 + flash * 0.85 + flashHit * 0.6 + mid * 0.15, 0.0, 1.0);
+    vOpacity = clamp(0.4 * depthF + low * 0.25 + lowHit * 0.3 + flash * 0.85 + flashHit * 0.6 + mid * 0.15, 0.0, 1.0);
   }
 `;
 

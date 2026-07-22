@@ -11,22 +11,24 @@ import type { DensityLevel } from "@/types/visualizer";
 
 /**
  * ORBITAL THREADS — the same smooth luminous lines as Silk Lines, each with a
- * small sphere anchored at both endpoints. Spheres travel with the line ends,
- * receive a subtle scale punch on LOW hits, and sparkle on HIGH hits.
+ * small sphere anchored at both endpoints AND at the line's midpoint. Spheres
+ * travel with their anchor points on the line, receive a subtle scale punch on
+ * LOW hits, and sparkle on HIGH hits.
  *
  * Density:
- *   Low = 3 lines / 6 spheres  |  Medium = 6 / 12  |  High = 9 / 18
+ *   Low = 3 lines / 9 spheres  |  Medium = 6 / 18  |  High = 9 / 27
  *
- * All N*2 spheres are rendered as one THREE.InstancedMesh (single draw call).
+ * All N*3 spheres are rendered as one THREE.InstancedMesh (single draw call).
  * The InstancedMesh is added to the same Group root after the line objects, so
  * it draws on top of and blends additively with the lines.
  *
  * Audio mapping:
- *   LOW      → per-line perpendicular sway. Spheres inherit it (they sit at
- *               line endpoints, which already include the sway).
- *   LOW hit  → brief outward push on line + scale punch on spheres + brightness.
- *   MID      → controlled ripple along each line. Spheres at endpoints pick up
- *               the ripple value at t=0 and t=1 naturally.
+ *   LOW      → separation: each line pushes along its perpendicular AWAY from
+ *               the scene centre (fixed direction, varied amount). All three
+ *               spheres sit ON the line, so they separate consistently with it.
+ *   LOW hit  → quick extra separation push + scale punch on spheres + brightness.
+ *   MID      → controlled ripple along each line. End spheres pick up the ripple
+ *               at t=0 / t=1; the midpoint sphere rides it at t≈0.5.
  *   HIGH     → travelling shimmer along lines. Spheres sparkle on high hits.
  *   HIGH hit → sharper sphere sparkle (small glints, not flashing bulbs).
  */
@@ -46,6 +48,10 @@ interface LineState {
   driftSpeed: number;
   colorT: number;
   affLow: number; affMid: number; affHigh: number;
+  /** Fixed separation direction along ±perp — points AWAY from the scene centre. */
+  sepDir: number;
+  /** Per-line separation magnitude variation. */
+  sepVary: number;
   geo: THREE.BufferGeometry;
   posArr: Float32Array;
   colArr: Float32Array;
@@ -91,6 +97,10 @@ function buildLines(
       affLow:  i % 3 === 0 ? rand(0.70, 1.00) : rand(0.08, 0.38),
       affMid:  i % 3 === 1 ? rand(0.70, 1.00) : rand(0.08, 0.38),
       affHigh: i % 3 === 2 ? rand(0.70, 1.00) : rand(0.08, 0.38),
+      // Which way along ±perp points AWAY from the scene centre for this line —
+      // fixed at build so Low always pushes lines apart, never oscillates them.
+      sepDir: (cx * -ay + cy * ax) >= 0 ? 1 : -1,
+      sepVary: rand(0.7, 1.3),
       geo, posArr, colArr,
     });
   }
@@ -115,7 +125,8 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
   const vol   = { halfW, halfH, halfD };
 
   // ── Spheres (one InstancedMesh, single draw call) ─────────────────────────
-  const sphereCount = n * 2;
+  // Three spheres per line: both endpoints + the midpoint (3/6/9 lines → 9/18/27).
+  const sphereCount = n * 3;
   const sphereGeo = new THREE.SphereGeometry(SPHERE_R, 7, 5);
   const sphereMat = new THREE.MeshBasicMaterial({
     color:       0xffffff,
@@ -143,7 +154,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       const s = lines[li];
       const { posArr, colArr, geo, ax, ay, perpX, perpY,
               amplitude, phase, driftSpeed, colorT,
-              affLow, affMid, affHigh } = s;
+              affLow, affMid, affHigh, sepDir, sepVary } = s;
 
       const hw = vol.halfW, hh = vol.halfH, hd = vol.halfD;
       const cx = s.cxF * hw, cy = s.cyF * hh, cz = s.czF * hd;
@@ -157,10 +168,14 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       const lowHitEff  = audio.lowHit  * affLow;
       const highHitEff = audio.highHit * affHigh;
 
-      // LOW: per-line perpendicular sway
-      const swayAmt = lowEff * 7.5 * Math.sin(phase + time * 0.63);
-      const swayX = perpX * swayAmt;
-      const swayY = perpY * swayAmt;
+      // LOW: separation — the whole line (and its spheres) pushes along its
+      // perpendicular AWAY from the scene centre (sepDir fixed at build), so
+      // bass opens space between the threads instead of oscillating them.
+      // Level = sustained spacing pressure; hit = quick push that eases back
+      // with the envelope. Direction + magnitude vary per line.
+      const sepAmt = (lowEff * 5.5 + lowHitEff * 7.0) * sepDir * sepVary;
+      const sepX = perpX * sepAmt;
+      const sepY = perpY * sepAmt;
 
       for (let j = 0; j < PTS; j++) {
         const t = j / (PTS - 1);
@@ -178,12 +193,9 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         // Slow Z drift
         pz += Math.sin(t * Math.PI + phase * 0.44 + time * 0.16) * 5.0;
 
-        // LOW sway + hit punch
-        px += swayX;
-        py += swayY;
-        const punch = lowHitEff * 4.5;
-        px += perpX * punch;
-        py += perpY * punch;
+        // LOW: separation offset (the whole line moves as one)
+        px += sepX;
+        py += sepY;
 
         // MID: controlled ripple
         const ripple = Math.sin(t * TWO_PI * 3.5 + phase * 1.25 + time * 2.1);
@@ -215,11 +227,15 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       (geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
       (geo.attributes.color    as THREE.BufferAttribute).needsUpdate = true;
 
-      // ── Spheres: follow the computed line endpoints ──────────────────────
-      // posArr is already filled for this line — read the first and last points.
+      // ── Spheres: follow the line's endpoints + midpoint ───────────────────
+      // posArr is already filled for this line — read the first, middle and
+      // last points, so every sphere (including the Low separation) stays ON
+      // the line.
       const i0  = 0;
+      const iM  = (PTS >> 1) * 3; // midpoint vertex — rides the mid ripple at t≈0.5
       const i1  = (PTS - 1) * 3;
       const p0x = posArr[i0],     p0y = posArr[i0 + 1], p0z = posArr[i0 + 2];
+      const pMx = posArr[iM],     pMy = posArr[iM + 1], pMz = posArr[iM + 2];
       const p1x = posArr[i1],     p1y = posArr[i1 + 1], p1z = posArr[i1 + 2];
 
       // Sphere: subtle scale punch on low hit; slight forward pop on high hit.
@@ -230,19 +246,21 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       paletteMix(colorT, ca, cb, cc, sphColor);
       sphColor.multiplyScalar(sphBright);
 
-      // Start-endpoint sphere
+      // Start / midpoint / end spheres — same small, elegant size and styling.
       _m4.makeScale(sphScale, sphScale, sphScale);
       _m4.setPosition(p0x, p0y, p0z);
-      sphereMesh.setMatrixAt(li * 2, _m4);
+      sphereMesh.setMatrixAt(li * 3, _m4);
 
-      // End-endpoint sphere
-      _m4.makeScale(sphScale, sphScale, sphScale);
+      _m4.setPosition(pMx, pMy, pMz);
+      sphereMesh.setMatrixAt(li * 3 + 1, _m4);
+
       _m4.setPosition(p1x, p1y, p1z);
-      sphereMesh.setMatrixAt(li * 2 + 1, _m4);
+      sphereMesh.setMatrixAt(li * 3 + 2, _m4);
 
       // setColorAt auto-initialises instanceColor on the first call.
-      sphereMesh.setColorAt(li * 2,     sphColor);
-      sphereMesh.setColorAt(li * 2 + 1, sphColor);
+      sphereMesh.setColorAt(li * 3,     sphColor);
+      sphereMesh.setColorAt(li * 3 + 1, sphColor);
+      sphereMesh.setColorAt(li * 3 + 2, sphColor);
     }
 
     sphereMesh.instanceMatrix.needsUpdate = true;
@@ -258,6 +276,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       lineMat.dispose();
       sphereGeo.dispose();
       sphereMat.dispose();
+      sphereMesh.dispose(); // releases the instance matrix/color GPU buffers
     },
   };
 }

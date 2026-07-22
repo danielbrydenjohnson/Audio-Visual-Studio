@@ -17,13 +17,15 @@ import type { DensityLevel } from "@/types/visualizer";
  * affinities, seed, phase). Matrices and colours are updated CPU-side each frame
  * into the instance buffers — cheap at these counts and fully per-instance:
  *
- *   LOW  → low-affinity cubes swell + get a short impulse along their own velocity
+ *   LOW  → low-affinity cubes push OUTWARD from the swarm centre along their own
+ *          radial — space opens between cubes (separation/expansion) + gentle swell
  *   MID  → mid-affinity cubes tumble faster + drift on curved local paths
  *   HIGH → a changing subset flickers brighter + snaps into sharp extra rotation
  *
  * Hit envelopes (transients) act on top, always per-cube and bounded:
  *
- *   LOW hit  → a static ~half subset jumps further along its velocity + a scale punch
+ *   LOW hit  → a static ~half subset punches further outward from the centre with
+ *              per-cube magnitude variation (never one uniform scale) + scale punch
  *   MID hit  → per-cube angular-velocity burst (accumulated, so no back-rotation)
  *   HIGH hit → fast-changing subset (~24 Hz reshuffle) glints bright with a size pop
  *
@@ -161,12 +163,19 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         let py = wrap(baseY[i] + velY[i] * time * speed, hh);
         let pz = wrap(baseZ[i] + velZ[i] * time * speed, hd);
 
-        // LOW: short impulse along this cube's own velocity direction — the
-        // sustained level pushes gently, a kick hit shoves the gated subset
-        // harder for an instant and eases back with the envelope.
+        // LOW: separation — each cube pushes OUTWARD from the swarm centre along
+        // its own radial, so kicks briefly open space between the cubes (the
+        // swarm expands) instead of shoving cubes along their travel direction.
+        // Per-cube magnitude varies via seed so the expansion never reads as one
+        // uniform root scale; sustained level = slow outward pressure, the hit
+        // envelope = punch that eases back naturally as it decays.
         if (lowR > 0.0001 || lowHitR > 0.0001) {
-          velDir.set(velX[i], velY[i], velZ[i]).normalize();
-          const imp = lowR * 9.0 + lowHitR * 14.0;
+          velDir.set(px, py, pz);
+          const rl = velDir.length();
+          if (rl > 0.001) velDir.multiplyScalar(1 / rl);
+          else velDir.set(0, 1, 0); // dead-centre cube: any direction works
+          const vary = 0.7 + 0.6 * fract(seed[i] * 0.617);
+          const imp = (lowR * 8.0 + lowHitR * 13.0) * vary;
           px += velDir.x * imp;
           py += velDir.y * imp;
           pz += velDir.z * imp;
@@ -202,9 +211,10 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
           rotZ[i] + rotSZ[i] * time * rs,
         );
 
-        // LOW swells the cube (level) and punches it on kicks (hit); the swarm
-        // is never scaled as a whole. HIGH-hit glints add a small size pop.
-        const s = scale[i] * esize * (1 + lowR * 0.8 + lowHitR * 0.5 + flick * 0.5 + glint * 0.22);
+        // LOW adds a gentle swell (level) and a modest kick punch (hit) — kept
+        // subtle so the outward separation reads as the primary Low effect; the
+        // swarm is never scaled as a whole. HIGH-hit glints add a small size pop.
+        const s = scale[i] * esize * (1 + lowR * 0.45 + lowHitR * 0.35 + flick * 0.5 + glint * 0.22);
         dummy.position.set(px, py, pz);
         dummy.scale.set(s, s, s);
         dummy.updateMatrix();

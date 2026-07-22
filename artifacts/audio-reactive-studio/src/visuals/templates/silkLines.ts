@@ -20,8 +20,11 @@ import type { DensityLevel } from "@/types/visualizer";
  *   Low = 3 lines  |  Medium = 6 lines  |  High = 9 lines
  *
  * Audio mapping (all bounded; no chaos):
- *   LOW      → per-line perpendicular sway (different lines, different amounts).
- *   LOW hit  → brief outward push + overall brightness pulse.
+ *   LOW      → separation: each line drifts along its perpendicular AWAY from
+ *              the scene centre (fixed per-line direction, varied amount), so
+ *              sustained bass opens space between the lines.
+ *   LOW hit  → a quick extra separation push that eases back with the envelope
+ *              + overall brightness pulse.
  *   MID      → controlled ripple along the line (higher frequency than resting wave).
  *   HIGH     → travelling shimmer: a bright spot moving along each line.
  *   HIGH hit → sharper, faster sparkle.
@@ -48,6 +51,10 @@ interface LineState {
   colorT: number;
   /** Band affinities [0,1]. */
   affLow: number; affMid: number; affHigh: number;
+  /** Fixed separation direction along ±perp — points AWAY from the scene centre. */
+  sepDir: number;
+  /** Per-line separation magnitude variation. */
+  sepVary: number;
   geo: THREE.BufferGeometry;
   posArr: Float32Array;
   colArr: Float32Array;
@@ -95,6 +102,10 @@ function buildLines(
       affLow:  i % 3 === 0 ? rand(0.70, 1.00) : rand(0.08, 0.38),
       affMid:  i % 3 === 1 ? rand(0.70, 1.00) : rand(0.08, 0.38),
       affHigh: i % 3 === 2 ? rand(0.70, 1.00) : rand(0.08, 0.38),
+      // Which way along ±perp points AWAY from the scene centre for this line —
+      // fixed at build so Low always pushes lines apart, never oscillates them.
+      sepDir: (cx * -ay + cy * ax) >= 0 ? 1 : -1,
+      sepVary: rand(0.7, 1.3),
       geo, posArr, colArr,
     });
   }
@@ -128,7 +139,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
     for (const s of lines) {
       const { posArr, colArr, geo, ax, ay, perpX, perpY,
               amplitude, phase, driftSpeed, colorT,
-              affLow, affMid, affHigh } = s;
+              affLow, affMid, affHigh, sepDir, sepVary } = s;
 
       const hw = vol.halfW, hh = vol.halfH, hd = vol.halfD;
       const cx = s.cxF * hw, cy = s.cyF * hh, cz = s.czF * hd;
@@ -142,11 +153,15 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       const lowHitEff  = audio.lowHit  * affLow;
       const highHitEff = audio.highHit * affHigh;
 
-      // LOW: whole-line perpendicular sway — each line has its own phase so they
-      // don't all move identically.
-      const swayAmt = lowEff * 7.5 * Math.sin(phase + time * 0.63);
-      const swayX = perpX * swayAmt;
-      const swayY = perpY * swayAmt;
+      // LOW: separation — the whole line pushes along its perpendicular AWAY
+      // from the scene centre (sepDir fixed at build), so bass opens space
+      // between the lines instead of oscillating them. Level = sustained
+      // spacing pressure; hit = a quick extra push that eases back with the
+      // envelope. Direction + magnitude vary per line, so lines never move
+      // identically; at 0% Low influence only the resting undulation remains.
+      const sepAmt = (lowEff * 5.5 + lowHitEff * 7.0) * sepDir * sepVary;
+      const sepX = perpX * sepAmt;
+      const sepY = perpY * sepAmt;
 
       for (let j = 0; j < PTS; j++) {
         const t = j / (PTS - 1); // 0 → 1
@@ -166,13 +181,9 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         // Slow, independent Z drift so the line subtly moves in depth.
         pz += Math.sin(t * Math.PI + phase * 0.44 + time * 0.16) * 5.0;
 
-        // ── LOW: sway + hit punch ─────────────────────────────────────────────
-        px += swayX;
-        py += swayY;
-        // LOW hit: brief push outward that the attack/decay envelope shapes naturally.
-        const punch = lowHitEff * 4.5;
-        px += perpX * punch;
-        py += perpY * punch;
+        // ── LOW: separation offset (the whole line moves as one) ─────────────
+        px += sepX;
+        py += sepY;
 
         // ── MID: controlled ripple ────────────────────────────────────────────
         // Higher-frequency wave (3.5 cycles) at bounded amplitude — never goes mad.

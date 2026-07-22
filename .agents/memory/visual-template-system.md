@@ -135,6 +135,24 @@ blurs 2–5 ms transients; the frame-ref path keeps hits crisp, and hit sliders 
 editable mid-recording because settings flow through a render-updated ref (`hitRef`)
 instead of analyser-effect deps (the audio graph never restarts on tweaks).
 
+## Low band = physical separation/expansion (design language)
+Low (20–100 Hz kick/sub) maps to PHYSICAL space across all templates: elements
+separate / push outward from the structure's centre, shapes breathe/expand with
+bounded punches — never plain brightness lifts, chaos, or whole-root scaling.
+Whole-structure breathing is allowed only where the structure is one coherent form
+(Fibonacci Spiral's radial breath). Wireframe Core is a deliberate exception (left
+untouched by request). **Why:** user-specified retune (July 2026) after narrowing
+Low to 20–100 Hz — kicks should read as pressure/impact, not flash. **How to
+apply:** in new templates map Low level → sustained outward/spacing pressure and
+Low hit → separation/expansion punch riding the envelope; keep brightness terms
+secondary; per-element magnitude variation (seed) so nothing moves as one rigid body.
+
+## Template dispose() must release EVERYTHING the template allocated
+`InstancedMesh` needs its own `.dispose()` (frees instanceMatrix/instanceColor GPU
+buffers) in addition to geometry/material disposal. Missed once in a line+spheres
+template and only a review caught it — leaks accumulate fast here because roots are
+rebuilt on every template/density/aspect hot-swap.
+
 ## Hit (transient) mapping rule: integrate, never scale accumulated rotation
 Rotation expressed as `angle = rate * time` must NEVER get its rate multiplied by a
 transient envelope — when the envelope decays, the angle snaps back (rubber-band

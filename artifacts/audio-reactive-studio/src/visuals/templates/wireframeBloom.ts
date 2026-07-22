@@ -4,46 +4,43 @@ import {
   type TemplateCreateArgs,
   type TemplateRuntime,
   rand,
-  randomAffinities,
   paletteMix,
 } from "@/visuals/shared";
 import type { DensityLevel } from "@/types/visualizer";
 
 /**
- * WIREFRAME BLOOM — a controlled number of wireframe forms (EdgesGeometry →
- * LineSegments) occupying different depths, each moving, rotating, deforming and
- * pulsing INDEPENDENTLY so the result feels architectural rather than one spinning
- * logo. Density controls how many layers exist. Per-form reactions:
+ * WIREFRAME BLOOM — exactly THREE primary wireframe forms (EdgesGeometry →
+ * LineSegments): a torus (donut), a diamond (vertically stretched octahedron)
+ * and an octahedron. Each occupies its own position and depth and moves,
+ * rotates and pulses INDEPENDENTLY — deliberately simplified from the old
+ * many-layer stack so every form stays clear and readable. Density never adds
+ * shapes; it only refines the torus tessellation.
  *
- *   LOW  → form expands locally + drifts forward/back on its own path
+ *   LOW  → each form EXPANDS in size — a breathing pulse with a different
+ *          character per form (torus broad, diamond sharpest, octahedron
+ *          calmest); the sustained level adds gentle outward pressure
  *   MID  → individual twist/rotation at differing rates, phases and directions
  *   HIGH → a changing subset brightens / flickers with restraint
  *
  * Hit envelopes (transients) on top, per form:
  *
- *   LOW hit  → shell punch (extra local expansion) + a deeper forward shove
- *   MID hit  → rotation-rate burst, integrated per form (keeps its new phase)
+ *   LOW hit  → the breathing punch — a bounded per-form scale expansion that
+ *              eases back as the envelope decays (plus a small forward shove);
+ *              never an explosion, still composed at 200% influence
+ *   MID hit  → rotation-rate burst that decays with the envelope
  *   HIGH hit → fast-reshuffling subset glints brighter for an instant
  *
  * The root group is never rotated or scaled as the main motion.
  */
 
-const LAYERS: Record<DensityLevel, number> = { low: 5, medium: 8, high: 12 };
+/** Density refines the torus tessellation only — always exactly three forms. */
+const TORUS_SEGS: Record<DensityLevel, [number, number]> = {
+  low: [6, 14], medium: [8, 18], high: [10, 24],
+};
 
 function fract(x: number): number { return x - Math.floor(x); }
 
 const TAU = Math.PI * 2;
-
-/** Build a varied base geometry for layer index i (low-poly, modest segments). */
-function baseGeometry(i: number, r: number): THREE.BufferGeometry {
-  switch (i % 5) {
-    case 0:  return new THREE.IcosahedronGeometry(r, 0);
-    case 1:  return new THREE.OctahedronGeometry(r, 0);
-    case 2:  return new THREE.DodecahedronGeometry(r, 0);
-    case 3:  return new THREE.TorusGeometry(r, r * 0.34, 8, 18);
-    default: return new THREE.BoxGeometry(r * 1.4, r * 1.4, r * 1.4, 1, 1, 1);
-  }
-}
 
 interface Form {
   seg:   THREE.LineSegments;
@@ -55,18 +52,47 @@ interface Form {
   driftAmp: number; driftSpeed: number; driftPhase: number;
   phase: number; seed: number; cmix: number;
   lowAff: number; midAff: number; highAff: number;
-  /** Accumulated MID-hit rotation burst (radians, wrapped). */
+  /** LOW expansion character — sustained (level) and punch (hit) amounts. */
+  expandLevel: number; expandHit: number;
+  /** MID-hit rotation burst (radians) — direct envelope, decays naturally. */
   hitTwist: number;
 }
 
 function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
-  const layers = LAYERS[density];
   const root = new THREE.Group();
   const forms: Form[] = [];
+  const [tubeSegs, radSegs] = TORUS_SEGS[density];
 
-  for (let i = 0; i < layers; i++) {
-    const r = rand(9, 32);
-    const base = baseGeometry(i, r);
+  // The three primary forms. Each gets its own geometry, home position and
+  // LOW-expansion character (how much it breathes on level vs. kick punch).
+  const specs = [
+    {
+      // Torus — the roundest form; broad, generous breathing.
+      make: () => new THREE.TorusGeometry(19, 19 * 0.34, tubeSegs, radSegs),
+      px: -halfW * 0.20, py: halfH * 0.08, pz: -halfD * 0.25,
+      expandLevel: 0.10, expandHit: 0.34,
+    },
+    {
+      // Diamond — an octahedron stretched vertically reads as a classic gem
+      // silhouette; it gets the sharpest expansion punch.
+      make: () => {
+        const g = new THREE.OctahedronGeometry(12, 0);
+        g.scale(1, 1.6, 1);
+        return g;
+      },
+      px: halfW * 0.22, py: -halfH * 0.10, pz: halfD * 0.15,
+      expandLevel: 0.12, expandHit: 0.42,
+    },
+    {
+      // Octahedron — the calmest breather.
+      make: () => new THREE.OctahedronGeometry(15, 0),
+      px: halfW * 0.02, py: halfH * 0.02, pz: halfD * 0.55,
+      expandLevel: 0.08, expandHit: 0.26,
+    },
+  ];
+
+  specs.forEach((spec, i) => {
+    const base = spec.make();
     const edges = new THREE.EdgesGeometry(base);
     base.dispose(); // edges keeps its own copy of the line data
     const mat = new THREE.LineBasicMaterial({
@@ -79,21 +105,21 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
     });
     const seg = new THREE.LineSegments(edges, mat);
     seg.frustumCulled = false;
-    const [l, m, h] = randomAffinities();
     forms.push({
       seg, mat, edges,
-      baseScale: rand(0.7, 1.25),
-      rotSX: rand(-0.5, 0.5), rotSY: rand(-0.5, 0.5), rotSZ: rand(-0.5, 0.5),
-      posX: rand(-halfW * 0.35, halfW * 0.35),
-      posY: rand(-halfH * 0.35, halfH * 0.35),
-      posZ: rand(-halfD * 0.7, halfD * 0.7),
-      driftAmp: rand(6, 18), driftSpeed: rand(0.2, 0.7), driftPhase: rand(0, Math.PI * 2),
-      phase: rand(0, Math.PI * 2), seed: rand(0, 1000), cmix: Math.random(),
-      lowAff: l, midAff: m, highAff: h,
+      baseScale: 1,
+      rotSX: rand(-0.35, 0.35), rotSY: rand(-0.35, 0.35), rotSZ: rand(-0.35, 0.35),
+      posX: spec.px, posY: spec.py, posZ: spec.pz,
+      driftAmp: rand(5, 10), driftSpeed: rand(0.2, 0.5), driftPhase: rand(0, TAU),
+      phase: rand(0, TAU), seed: rand(0, 1000), cmix: i / 2,
+      // All three forms answer LOW (expansion IS this template's Low
+      // signature); MID/HIGH strengths vary per form so each stays individual.
+      lowAff: 1, midAff: rand(0.45, 1), highAff: rand(0.45, 1),
+      expandLevel: spec.expandLevel, expandHit: spec.expandHit,
       hitTwist: 0,
     });
     root.add(seg);
-  }
+  });
 
   const tmpCol = new THREE.Color();
   let hd = halfD;
@@ -135,13 +161,15 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
           f.rotSY * time * rs * 1.05,
           f.rotSZ * time * rs * 0.95 + f.hitTwist * twistDir,
         );
-        // LOW expands this form locally (level breathes, hit punches); the
-        // group is never scaled as one.
-        const s = f.baseScale * esize * (1 + lowR * 0.55 + lowHitR * 0.35 + flick * 0.25 + spark * 0.12);
+        // LOW: this form's own breathing expansion — the level applies gentle
+        // sustained pressure and the hit envelope punches the scale outward,
+        // each form by its own amount, easing back as the envelope decays.
+        // The group is never scaled as one.
+        const s = f.baseScale * esize * (1 + lowR * f.expandLevel + lowHitR * f.expandHit + flick * 0.22 + spark * 0.12);
         f.seg.scale.set(s, s, s);
         // Independent forward/back drift, clamped inside the depth volume.
-        // LOW hits shove the form deeper for an instant.
-        const z = f.posZ + Math.sin(time * f.driftSpeed + f.driftPhase) * f.driftAmp + lowR * 10.0 + lowHitR * 14.0;
+        // LOW adds only a small forward shove (expansion leads, not travel).
+        const z = f.posZ + Math.sin(time * f.driftSpeed + f.driftPhase) * f.driftAmp + lowR * 6.0 + lowHitR * 8.0;
         f.seg.position.set(
           f.posX,
           f.posY + Math.cos(time * f.driftSpeed * 0.8 + f.driftPhase) * f.driftAmp * 0.4,
