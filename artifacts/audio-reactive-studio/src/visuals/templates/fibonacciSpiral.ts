@@ -80,7 +80,7 @@ const DISPLACE_FN = /* glsl */ `
     // radius, so inner and outer arm sections bend by different amounts (waves
     // travel along the arms) rather than the whole spiral spinning as one.
     // MID hits add a sharper, faster wave that races along the arms briefly.
-    float twist = sin(radius * 0.14 + uTime * 1.3 + phase) * mid * 0.6
+    float twist = sin(radius * 0.14 + uTime * 1.3 + phase) * mid * 0.3
                 + sin(radius * 0.30 - uTime * 2.4 + phase * 2.0) * midHit * 0.4;
     float cs = cos(twist), sn = sin(twist);
     p.xy = mat2(cs, -sn, sn, cs) * p.xy;

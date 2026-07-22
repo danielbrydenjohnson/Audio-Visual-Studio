@@ -174,7 +174,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
 
         // MID: curved local drift using this cube's phase (never a global move).
         if (midR > 0.0001) {
-          const amp = midR * 6.0;
+          const amp = midR * 1.5;
           px += Math.sin(phase[i] + time * 1.7) * amp;
           py += Math.cos(phase[i] * 1.3 + time * 1.5) * amp;
           pz += Math.sin(phase[i] * 0.7 + time * 1.9) * amp;
@@ -188,15 +188,12 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const twHit = fract(Math.sin(seed[i] * 13.7 + glintSlot * 17.31) * 43758.5453);
         const glint = highHitR * (twHit > 0.6 ? 1 : 0);
 
-        // MID hit: angular-velocity burst — integrates into a per-cube angle so
-        // cubes briefly tumble FASTER on the transient, then keep their new
-        // orientation (no rubber-band back-rotation).
-        if (midHitR > 0.0001) {
-          hitSpin[i] = (hitSpin[i] + midHitR * dt * 9.0) % TAU;
-        }
+        // MID hit: bounded direct envelope — reads the current hit envelope each
+        // frame so the spin decays naturally with the envelope (no accumulation).
+        hitSpin[i] = midHitR * 1.5;
 
         // Per-cube tumbling; MID speeds it up, HIGH adds a sharp snap.
-        const rs = speed * (1 + midR * 1.6);
+        const rs = speed * (1 + midR * 0.4);
         const spinDirX = rotSX[i] < 0 ? -1 : 1;
         const spinDirY = rotSY[i] < 0 ? -1 : 1;
         dummy.rotation.set(

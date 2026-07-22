@@ -123,14 +123,12 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const twHit = fract(Math.sin(f.seed * 7.7 + glintSlot * 13.13) * 43758.5453);
         const spark = highHitR * (twHit > 0.55 ? 1 : 0);
 
-        // MID hit: rotation-rate burst, integrated per form so it tumbles
-        // faster for an instant and keeps its new phase (no rubber-banding).
-        if (midHitR > 0.0001) {
-          f.hitTwist = (f.hitTwist + midHitR * dt * 7.0) % TAU;
-        }
+        // MID hit: bounded direct envelope — decays naturally with the envelope
+        // each frame (no permanent angular accumulation).
+        f.hitTwist = midHitR * 1.2;
 
         // Independent rotation (MID speeds each form differently).
-        const rs = speed * (1 + midR * 1.7);
+        const rs = speed * (1 + midR * 0.35);
         const twistDir = f.rotSZ < 0 ? -1 : 1;
         f.seg.rotation.set(
           f.rotSX * time * rs + f.phase,
@@ -153,7 +151,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         // Colour: palette base × per-form brightness (glow + LOW + MID + HIGH
         // flicker + hit accents on their own subsets).
         paletteMix(f.cmix, a, b, c, tmpCol);
-        const bright = 0.55 + glow * 0.7 + lowR * 0.3 + lowHitR * 0.35 + midR * 0.25 + flick * 1.5 + spark * 1.7;
+        const bright = 0.55 + glow * 0.7 + lowR * 0.3 + lowHitR * 0.35 + midR * 0.15 + flick * 1.5 + spark * 1.7;
         f.mat.color.setRGB(tmpCol.r * bright, tmpCol.g * bright, tmpCol.b * bright);
         f.mat.opacity = Math.min(1, 0.5 + lowR * 0.3 + lowHitR * 0.25 + flick * 0.5 + spark * 0.45 + glow * 0.2);
       }

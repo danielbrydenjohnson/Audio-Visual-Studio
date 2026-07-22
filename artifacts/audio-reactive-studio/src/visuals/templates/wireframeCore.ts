@@ -241,16 +241,19 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         // HIGH hit: independent fast-reshuffling glint subset.
         const glintHit = highHitR * (fract(Math.sin(L.seed * 5.3 + glintSlot * 11.7) * 43758.5453) > 0.55 ? 1 : 0);
 
-        // Independent rotation — MID whips this layer's own rate; MID hits add
-        // a brief extra angular velocity along each axis' own spin direction.
-        // Both integrate into the same dt-accumulated, wrapped angles, so hits
-        // speed the twist up for an instant without any back-rotation.
-        const rateBoost = 1 + midR * 2.4;
-        const hitWhip = midHitR * 1.5;
-        L.ax = (L.ax + dt * (sp * L.rx * rateBoost + hitWhip * Math.sign(L.rx))) % TAU;
-        L.ay = (L.ay + dt * (sp * L.ry * rateBoost + hitWhip * Math.sign(L.ry))) % TAU;
-        L.az = (L.az + dt * (sp * L.rz * rateBoost + hitWhip * Math.sign(L.rz))) % TAU;
-        L.group.rotation.set(L.ax, L.ay, L.az);
+        // Independent rotation — MID gently boosts this layer's own rate.
+        // MID hits apply a bounded direct rotation offset (decays with envelope,
+        // never accumulates permanent angular state).
+        const rateBoost = 1 + midR * 0.4;
+        L.ax = (L.ax + dt * sp * L.rx * rateBoost) % TAU;
+        L.ay = (L.ay + dt * sp * L.ry * rateBoost) % TAU;
+        L.az = (L.az + dt * sp * L.rz * rateBoost) % TAU;
+        const hitOffset = midHitR * 0.6;
+        L.group.rotation.set(
+          L.ax + hitOffset * Math.sign(L.rx),
+          L.ay + hitOffset * Math.sign(L.ry),
+          L.az + hitOffset * Math.sign(L.rz),
+        );
 
         // Breathe + LOW pulse (this shell only — never the root). LOW hits
         // punch the breathe a little harder for an instant.
@@ -263,14 +266,14 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const z = Math.sin(time * L.driftSpeed + L.driftPhase) * L.driftAmp * depthScale
                 + (lowR * 7 + lowHitR * 9) * L.pushDir * depthScale;
         L.group.position.set(
-          Math.sin(time * L.driftSpeed * 1.3 + L.driftPhase) * midR * 2.5,
-          Math.cos(time * L.driftSpeed * 1.1 + L.driftPhase) * midR * 2.5,
+          Math.sin(time * L.driftSpeed * 1.3 + L.driftPhase) * midR * 0.8,
+          Math.cos(time * L.driftSpeed * 1.1 + L.driftPhase) * midR * 0.8,
           Math.max(-hd * 0.8, Math.min(hd * 0.8, z)),
         );
 
         // Edge colour/opacity (hit accents ride on their own subsets).
         paletteMix(L.cmix, ca, cb, cc, tmpC);
-        const eB = 0.50 + gl * 0.65 + lowR * 0.55 + lowHitR * 0.45 + midR * 0.30 + glint * 1.60 + glintHit * 1.50;
+        const eB = 0.50 + gl * 0.65 + lowR * 0.55 + lowHitR * 0.45 + midR * 0.15 + glint * 1.60 + glintHit * 1.50;
         L.lineMat.color.setRGB(tmpC.r * eB, tmpC.g * eB, tmpC.b * eB);
         L.lineMat.opacity = Math.min(1, 0.42 + gl * 0.22 + lowR * 0.30 + lowHitR * 0.25 + glint * 0.50 + glintHit * 0.45);
 

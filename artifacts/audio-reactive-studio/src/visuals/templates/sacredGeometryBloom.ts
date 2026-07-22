@@ -183,16 +183,14 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const twHit = Math.abs((Math.sin(L.seed * 7.7 + glintSlot * 13.13) * 43758.5453) % 1);
         const spark = highHitR * (twHit > 0.55 ? 1 : 0);
 
-        // MID hit: rotation-rate burst, integrated per layer so it spins faster
-        // for an instant and keeps its new phase (no back-rotation).
-        if (midHitR > 0.0001) {
-          L.hitRot = (L.hitRot + midHitR * dt * 5.0) % TAU;
-        }
+        // MID hit: bounded direct envelope — decays naturally with the envelope
+        // each frame (no permanent rotation accumulation).
+        L.hitRot = midHitR * 1.0;
 
         // MID: independent rotation about z — each layer spins at its own signed
         // rate (never the group as one). Resting spin continues at 0% influence.
         const rotDir = L.rotRate < 0 ? -1 : 1;
-        L.seg.rotation.z = L.rotPhase + time * speed * L.rotRate * (1 + midR * 2.2) + L.hitRot * rotDir;
+        L.seg.rotation.z = L.rotPhase + time * speed * L.rotRate * (1 + midR * 0.4) + L.hitRot * rotDir;
 
         // LOW: each layer breathes on its own phase (local radial pulse). LOW
         // hits punch inner layers hardest, so the kick blooms outward from the
@@ -206,7 +204,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         // Colour: palette base × per-layer brightness (glow + LOW + MID + HIGH
         // + hit accents on their own subsets).
         paletteMix(L.cmix, a, b, c, tmpCol);
-        const bright = 0.5 + glow * 0.7 + lowR * 0.28 + lowHitR * 0.3 + midR * 0.22 + flick * 1.4 + spark * 1.6;
+        const bright = 0.5 + glow * 0.7 + lowR * 0.28 + lowHitR * 0.3 + midR * 0.12 + flick * 1.4 + spark * 1.6;
         L.mat.color.setRGB(tmpCol.r * bright, tmpCol.g * bright, tmpCol.b * bright);
         L.mat.opacity = Math.min(1, 0.45 + lowR * 0.3 + lowHitR * 0.25 + flick * 0.5 + spark * 0.45 + glow * 0.2);
       }

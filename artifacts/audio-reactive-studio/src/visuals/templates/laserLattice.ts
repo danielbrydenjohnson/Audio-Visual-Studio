@@ -79,11 +79,11 @@ const VERTEX_BODY = /* glsl */ `
       sin(aPhase + uTime * 1.3),
       cos(aPhase * 1.2 + uTime * 1.1),
       sin(aPhase * 0.7 + uTime * 1.5)
-    ) * mid * 0.7 + vec3(
+    ) * mid * 0.35 + vec3(
       sin(aPhase * 3.1 + m.z * 0.22),
       cos(aPhase * 2.3 - m.z * 0.19),
       0.0
-    ) * midHit * 0.8 + vec3(0.0001));
+    ) * midHit * 0.4 + vec3(0.0001));
 
     // HIGH: changing subset flashes + brief forward length streak.
     float tw = fract(sin(seed * 91.17 + uTime * (6.0 + aFwd * 6.0)) * 43758.5453);
