@@ -108,7 +108,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
     forms.push({
       seg, mat, edges,
       baseScale: 1,
-      rotSX: rand(-0.35, 0.35), rotSY: rand(-0.35, 0.35), rotSZ: rand(-0.35, 0.35),
+      rotSX: rand(-0.18, 0.18), rotSY: rand(-0.18, 0.18), rotSZ: rand(-0.18, 0.18),
       posX: spec.px, posY: spec.py, posZ: spec.pz,
       driftAmp: rand(5, 10), driftSpeed: rand(0.2, 0.5), driftPhase: rand(0, TAU),
       phase: rand(0, TAU), seed: rand(0, 1000), cmix: i / 2,
@@ -149,12 +149,13 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const twHit = fract(Math.sin(f.seed * 7.7 + glintSlot * 13.13) * 43758.5453);
         const spark = highHitR * (twHit > 0.55 ? 1 : 0);
 
-        // MID hit: bounded direct envelope — decays naturally with the envelope
-        // each frame (no permanent angular accumulation).
-        f.hitTwist = midHitR * 1.2;
+        // MID hit: very restrained rotation accent — bounded direct envelope,
+        // decays naturally each frame, never accumulates.
+        f.hitTwist = midHitR * 0.30;
 
-        // Independent rotation (MID speeds each form differently).
-        const rs = speed * (1 + midR * 0.35);
+        // Independent rotation (MID provides a subtle extra speed, not a
+        // dramatic spin-up — forms stay readable and elegant at 200% influence).
+        const rs = speed * (1 + midR * 0.10);
         const twistDir = f.rotSZ < 0 ? -1 : 1;
         f.seg.rotation.set(
           f.rotSX * time * rs + f.phase,

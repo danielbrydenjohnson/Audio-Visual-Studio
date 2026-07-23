@@ -118,6 +118,11 @@ interface Layer {
   pulseAmp:  number; pulseSpeed: number; pulsePhase: number;
   seed:  number; cmix: number;
   lowAff: number; midAff: number; highAff: number;
+  /**
+   * How much Mid rotation applies to this layer: 1.0 = full (innermost),
+   * fades to 0 for outer layers — so only the central section spins on Mid.
+   */
+  centralFactor: number;
   /** Accumulated MID-hit rotation burst (radians, wrapped). */
   hitRot: number;
 }
@@ -155,6 +160,9 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       pulseAmp: rand(0.06, 0.2), pulseSpeed: rand(0.3, 0.9), pulsePhase: rand(0, Math.PI * 2),
       seed: rand(0, 1000), cmix: i / Math.max(1, count - 1),
       lowAff: l, midAff: m, highAff: h,
+      // Innermost layers (small cmix) get full Mid rotation; this falls to
+      // zero by cmix ≈ 0.25 so outer circles remain visually stable on Mid.
+      centralFactor: Math.max(0, 1.0 - (i / Math.max(1, count - 1)) * 4.0),
       hitRot: 0,
     });
     root.add(seg);
@@ -187,14 +195,18 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         const twHit = Math.abs((Math.sin(L.seed * 7.7 + glintSlot * 13.13) * 43758.5453) % 1);
         const spark = highHitR * (twHit > 0.55 ? 1 : 0);
 
-        // MID hit: bounded direct envelope — decays naturally with the envelope
-        // each frame (no permanent rotation accumulation).
-        L.hitRot = midHitR * 1.0;
+        // MID hit: rotation accent is gated to the central layers only.
+        // Bounded direct envelope — decays naturally, no permanent accumulation.
+        L.hitRot = midHitR * 0.65 * L.centralFactor;
 
-        // MID: independent rotation about z — each layer spins at its own signed
-        // rate (never the group as one). Resting spin continues at 0% influence.
+        // MID: resting rotation continues for ALL layers at their own signed
+        // rates (the geometry always drifts gently). The Mid-driven speed-up
+        // is multiplied by centralFactor so only the innermost section spins
+        // faster on a snare/clap — outer circles remain visually stable.
         const rotDir = L.rotRate < 0 ? -1 : 1;
-        L.seg.rotation.z = L.rotPhase + time * speed * L.rotRate * (1 + midR * 0.4) + L.hitRot * rotDir;
+        L.seg.rotation.z = L.rotPhase
+          + time * speed * L.rotRate * (1 + midR * 0.4 * L.centralFactor)
+          + L.hitRot * rotDir;
 
         // LOW: each layer breathes on its own phase (local radial pulse). LOW
         // hits expand the circles outward — inner layers punch slightly harder

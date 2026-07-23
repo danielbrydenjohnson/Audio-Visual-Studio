@@ -16,7 +16,7 @@ import type { DensityLevel } from "@/types/visualizer";
  * LOW hits, and sparkle on HIGH hits.
  *
  * Density:
- *   Low = 3 lines / 9 spheres  |  Medium = 6 / 18  |  High = 9 / 27
+ *   Low = 5 lines / 15 spheres  |  Medium = 9 / 27  |  High = 14 / 42
  *
  * All N*3 spheres are rendered as one THREE.InstancedMesh (single draw call).
  * The InstancedMesh is added to the same Group root after the line objects, so
@@ -27,13 +27,15 @@ import type { DensityLevel } from "@/types/visualizer";
  *               the scene centre (fixed direction, varied amount). All three
  *               spheres sit ON the line, so they separate consistently with it.
  *   LOW hit  → quick extra separation push + scale punch on spheres + brightness.
- *   MID      → controlled ripple along each line. End spheres pick up the ripple
- *               at t=0 / t=1; the midpoint sphere rides it at t≈0.5.
+ *   MID      → gentle curve deformation per line — the thread flexes through its
+ *               curve shape. Each line responds individually (own phase/amount).
+ *               Spheres follow the updated line positions automatically.
+ *   MID hit  → brief extra flex accent, decays with the envelope.
  *   HIGH     → travelling shimmer along lines. Spheres sparkle on high hits.
  *   HIGH hit → sharper sphere sparkle (small glints, not flashing bulbs).
  */
 
-const COUNTS: Record<DensityLevel, number> = { low: 3, medium: 6, high: 9 };
+const COUNTS: Record<DensityLevel, number> = { low: 5, medium: 9, high: 14 };
 const PTS      = 32;        // vertices per line
 const TWO_PI   = Math.PI * 2;
 const SPHERE_R = 0.85;      // world-unit radius — small and elegant
@@ -166,6 +168,7 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
       const midEff     = audio.mid     * affMid;
       const highEff    = audio.high    * affHigh;
       const lowHitEff  = audio.lowHit  * affLow;
+      const midHitEff  = audio.midHit  * affMid;
       const highHitEff = audio.highHit * affHigh;
 
       // LOW: separation — the whole line (and its spheres) pushes along its
@@ -197,11 +200,14 @@ function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): Te
         px += sepX;
         py += sepY;
 
-        // MID: controlled ripple
-        const ripple = Math.sin(t * TWO_PI * 3.5 + phase * 1.25 + time * 2.1);
-        const rippleAmp = midEff * amplitude * 0.55;
-        px += perpX * ripple * rippleAmp;
-        py += perpY * ripple * rippleAmp;
+        // MID: gentle curve deformation — fewer cycles than a ripple so the
+        // line flexes / breathes rather than wiggling. Per-line phase (already
+        // varied at build) keeps each thread individual. midHit adds a brief
+        // extra flex accent that eases back with the envelope.
+        const flex = Math.sin(t * TWO_PI * 1.8 + phase * 1.4 + time * 1.1);
+        const flexAmp = (midEff * 0.40 + midHitEff * 0.26) * amplitude;
+        px += perpX * flex * flexAmp;
+        py += perpY * flex * flexAmp;
 
         posArr[j * 3 + 0] = px;
         posArr[j * 3 + 1] = py;

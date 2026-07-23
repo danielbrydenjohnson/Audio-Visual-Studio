@@ -9,7 +9,9 @@ import {
   setF32,
   LINE_FRAGMENT_SHADER,
 } from "@/visuals/shared";
-import { DENSITY_COUNTS } from "@/types/visualizer";
+// Halved from the shared DENSITY_COUNTS — the spiral stays fully recognisable
+// (golden shape, parastichy arms) at lower node counts, and reads less crowded.
+const FIB_COUNTS = { low: 380, medium: 750, high: 1500 } as const;
 
 /**
  * FIBONACCI SPIRAL — a genuine golden-angle phyllotaxis (sunflower) spiral in 3D.
@@ -176,7 +178,7 @@ const LINE_VERTEX = DISPLACE_FN + /* glsl */ `
 `;
 
 function build({ density, halfW, halfH, halfD, shared }: TemplateCreateArgs): TemplateRuntime {
-  const count = DENSITY_COUNTS[density];
+  const count = FIB_COUNTS[density];
 
   // ── Per-node arrays (golden-angle phyllotaxis nodes) ──
   const position   = new Float32Array(count * 3);

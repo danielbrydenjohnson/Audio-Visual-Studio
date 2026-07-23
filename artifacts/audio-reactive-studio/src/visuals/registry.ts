@@ -7,7 +7,6 @@ import { fibonacciSpiralTemplate }     from "@/visuals/templates/fibonacciSpiral
 import { sacredGeometryBloomTemplate } from "@/visuals/templates/sacredGeometryBloom";
 import { goldenGalaxyTemplate }         from "@/visuals/templates/goldenGalaxy";
 import { wireframeCoreTemplate }        from "@/visuals/templates/wireframeCore";
-import { silkLinesTemplate }           from "@/visuals/templates/silkLines";
 import { orbitalThreadsTemplate }      from "@/visuals/templates/orbitalThreads";
 
 /** Registry mapping each template id to its implementation. */
@@ -19,7 +18,6 @@ const REGISTRY: Record<VisualTemplateId, VisualTemplate> = {
   "sacred-geometry-bloom": sacredGeometryBloomTemplate,
   "golden-galaxy":         goldenGalaxyTemplate,
   "wireframe-core":        wireframeCoreTemplate,
-  "silk-lines":            silkLinesTemplate,
   "orbital-threads":       orbitalThreadsTemplate,
 };
 

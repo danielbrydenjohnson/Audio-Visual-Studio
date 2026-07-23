@@ -34,11 +34,11 @@ import type { DensityLevel } from "@/types/visualizer";
  */
 
 // Deliberately sparser defaults than other templates: line segments read as
-// clutter much faster than points, so low/medium load with far fewer elements
-// for a cleaner look, while "high" keeps the old dense ceiling for users who
-// want it. Only the counts change — movement, hit reactions, kaleidoscope and
-// recording behaviour are untouched.
-const COUNTS: Record<DensityLevel, number> = { low: 150, medium: 380, high: 1500 };
+// clutter much faster than points. Counts further reduced from an earlier
+// pass so the default "medium" load feels clean — the upper ceiling at "high"
+// still gives users a dense, intense field when they want it. Only the counts
+// change — movement, hit reactions, kaleidoscope and recording are untouched.
+const COUNTS: Record<DensityLevel, number> = { low: 60, medium: 150, high: 600 };
 
 const VERTEX_BODY = /* glsl */ `
   attribute vec3  aDir;

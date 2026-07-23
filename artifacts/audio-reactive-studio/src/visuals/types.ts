@@ -14,7 +14,6 @@ export type VisualTemplateId =
   | "sacred-geometry-bloom"
   | "golden-galaxy"
   | "wireframe-core"
-  | "silk-lines"
   | "orbital-threads";
 
 export interface VisualTemplateMeta {
@@ -59,11 +58,6 @@ export const VISUAL_TEMPLATES: readonly VisualTemplateMeta[] = [
     id:          "wireframe-core",
     name:        "Wireframe Core",
     description: "A simple nested 3D wireframe shape pulsing and unfolding in space.",
-  },
-  {
-    id:          "silk-lines",
-    name:        "Silk Lines",
-    description: "A minimal set of luminous flowing lines drifting gently through space.",
   },
   {
     id:          "orbital-threads",

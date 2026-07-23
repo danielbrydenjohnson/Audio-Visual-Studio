@@ -1,0 +1,387 @@
+Tune Mid behaviour and density settings across selected Audio Reactive Studio templates.
+
+The app is currently working. It has uploaded track mode, live input mode, Low/Mid/High level and hit analysis, Hit Response controls, visual templates, Kaleidoscope, post effects, recording, collapsible UI sections, and output settings.
+
+Do not rebuild the app from scratch.
+
+Do not change audio analysis.
+
+Do not change the current frequency ranges.
+
+Current frequency ranges must stay:
+
+Low:
+30 Hz to 100 Hz
+
+Mid:
+1,000 Hz to 4,000 Hz
+
+High:
+6,000 Hz to 18,000 Hz
+
+The ignored gaps must remain ignored:
+
+100 Hz to 1,000 Hz
+4,000 Hz to 6,000 Hz
+
+Do not change recording.
+
+Do not change Kaleidoscope.
+
+Do not change post effects.
+
+Do not change Low behaviour unless explicitly required below.
+
+Do not change High behaviour unless explicitly required below.
+
+GOAL
+
+Make focused template-level changes:
+
+1. Leave Cube Swarm unchanged.
+2. Leave Laser Lattice Mid behaviour unchanged, but reduce Laser Lattice visual density.
+3. Reduce the aggressiveness of Wireframe Bloom Mid rotation.
+4. Leave Fibonacci Spiral Mid behaviour unchanged, but reduce Fibonacci Spiral visual density by about half.
+5. Change Sacred Geometry Bloom so only the middle section rotates on Mid, not the whole structure.
+6. Change Golden Galaxy Mid behaviour so particles increase in size slightly.
+7. Leave Wireframe Core unchanged.
+8. Remove Silk Lines from the template lineup.
+9. Improve Orbital Threads Mid behaviour and increase Orbital Threads visual density by 50%.
+
+TEMPLATE-SPECIFIC REQUIREMENTS
+
+CUBE SWARM
+
+Do not change Cube Swarm.
+
+No visual behaviour changes.
+
+No density changes.
+
+No Mid changes.
+
+LASER LATTICE
+
+Do not change what Mid does in Laser Lattice.
+
+Only reduce the visual density.
+
+The template currently has too many lasers / sticks / line particles.
+
+Reduce the default density so it loads cleaner.
+
+Requirements:
+
+- Preserve current Mid behaviour.
+- Preserve Low behaviour.
+- Preserve High behaviour.
+- Preserve depth movement.
+- Preserve Kaleidoscope compatibility.
+- Preserve recording compatibility.
+- Visual Density control should still work.
+- At default density, Laser Lattice should have noticeably fewer lines than before.
+- At high Visual Density, the user should still be able to make it denser.
+
+WIREFRAME BLOOM
+
+Mid should still rotate the shapes, but less aggressively.
+
+Current issue:
+
+- Mid rotation is too strong.
+- The shapes rotate too much and can feel uncontrolled.
+
+Desired behaviour:
+
+- Mid Level creates subtle controlled rotation.
+- Mid Hit creates a short restrained rotation accent.
+- Rotation should remain visible but elegant.
+- The forms should remain readable.
+- Do not remove the Mid rotation entirely.
+- Reduce the rotation strength and any angular impulse values.
+- Avoid unbounded spin accumulation.
+- Preserve Low expansion behaviour.
+- Preserve High sparkle / glint behaviour.
+- Preserve the simplified three-shape structure if already implemented:
+  - torus / donut
+  - diamond-type shape
+  - octahedron
+
+FIBONACCI SPIRAL
+
+Do not change what Mid does in Fibonacci Spiral.
+
+Only reduce the visual density by about half.
+
+Current issue:
+
+- The Fibonacci Spiral has too many visual elements.
+
+Desired behaviour:
+
+- Keep the existing Mid ripple / phase behaviour unchanged.
+- Keep Low breathing behaviour unchanged.
+- Keep High sparkle behaviour unchanged.
+- Reduce the number of spiral nodes / particles / line details by approximately 50%.
+- Preserve the recognisable golden spiral shape.
+- Preserve depth and resting motion.
+- Preserve Kaleidoscope compatibility.
+- Preserve recording compatibility.
+- Visual Density control should still work, but the overall count should be about half of what it is now.
+
+SACRED GEOMETRY BLOOM
+
+Change what Mid does.
+
+Current issue:
+
+- The whole structure rotates on Mid.
+- This is too much.
+
+Desired behaviour:
+
+- Only the very middle / central section of the structure should rotate in response to Mid.
+- Outer circles / outer components should remain mostly stable.
+- The structure appears to be made of multiple components. Use that component structure.
+- Mid Level should rotate or phase-shift only the central component.
+- Mid Hit can create a brief central rotational accent.
+- Do not rotate the whole root.
+- Do not rotate the entire sacred geometry pattern.
+- Preserve Low behaviour where circles expand on Low.
+- Preserve High sparkle / glint behaviour.
+- Preserve the removal of the square frame if already implemented.
+- Do not re-add the square frame.
+
+GOLDEN GALAXY
+
+Change what Mid does.
+
+Desired Mid behaviour:
+
+- On Mid, particles / stars should increase in size slightly.
+- The size change should be subtle and tasteful.
+- Mid should not churn the galaxy into chaos.
+- Mid should not rotate the whole galaxy.
+- Mid should not make all particles grow identically.
+- Different particles can respond slightly differently.
+- Preserve Low behaviour where particles create more space and may grow on Low.
+- Preserve High twinkle behaviour.
+- Preserve galaxy depth movement and spiral-arm readability.
+
+Implementation idea:
+
+- Use Mid Level for a subtle size lift.
+- Use Mid Hit for a brief extra size accent.
+- Clamp the size increase so it remains elegant.
+
+WIREFRAME CORE
+
+Do not change Wireframe Core.
+
+No visual behaviour changes.
+
+No density changes.
+
+No Mid changes.
+
+SILK LINES
+
+Remove Silk Lines from the template lineup.
+
+Reason:
+
+- Orbital Threads is similar and works better.
+
+Requirements:
+
+- Remove Silk Lines from the selector.
+- Remove Silk Lines from template metadata.
+- Remove Silk Lines from the template ID union.
+- Remove Silk Lines from the template factory.
+- Remove any active references/imports.
+- Remove the Silk Lines template file if it is no longer used.
+- Do not break Orbital Threads.
+- Do not leave dead selectable code paths.
+
+ORBITAL THREADS
+
+Make two changes.
+
+First, change Mid behaviour.
+
+Current desired behaviour:
+
+- Mid should make each individual line change its shape very slightly.
+- The line is already curvy.
+- Mid should subtly modify the curve.
+- This should feel like the line is flexing or breathing through the curve.
+- It should not move the whole line as one rigid object.
+- It should not become chaotic.
+- It should not wobble too much.
+- Each line should respond individually with slightly different phase and amount.
+
+Desired Mid mapping:
+
+- Mid Level creates subtle curve deformation along each line.
+- Mid Hit creates a brief extra curve accent.
+- The curve change should be bounded.
+- The line should remain elegant and readable.
+- The attached spheres should remain attached to the updated line positions.
+- Start, middle, and end spheres must continue to follow the line.
+
+Second, increase visual density by 50%.
+
+Current density mapping should be increased by approximately 50%.
+
+If the current mapping is:
+
+- low = 3 lines
+- medium = 6 lines
+- high = 9 lines
+
+Change it to approximately:
+
+- low = 5 lines
+- medium = 9 lines
+- high = 14 lines
+
+For Orbital Threads, each line should still have:
+
+- start sphere
+- middle sphere
+- end sphere
+
+That means approximately:
+
+- low = 5 lines and 15 spheres
+- medium = 9 lines and 27 spheres
+- high = 14 lines and 42 spheres
+
+Keep the spheres small and elegant.
+
+Do not let the increased density make the template messy.
+
+Preserve:
+
+- Low behaviour where lines move away from each other
+- High glints / sphere sparkles
+- Kaleidoscope compatibility
+- post effects compatibility
+- recording compatibility
+
+PRESERVE CURRENT AUDIO MODEL
+
+Do not alter:
+
+- spectral flux
+- hit envelopes
+- analyser smoothing
+- level smoothing
+- Hit Response controls
+- level / hit meter display
+- Low/Mid/High influence sliders
+
+The existing influence sliders should still work.
+
+At Mid Influence 0%:
+
+- Mid should have no visible effect.
+
+At Mid Influence 100%:
+
+- Mid should be visible but controlled.
+
+At Mid Influence 200%:
+
+- Mid can be stronger but should still remain usable.
+
+VALIDATION
+
+Test template list:
+
+1. Confirm Silk Lines is gone from the selector.
+2. Confirm Orbital Threads remains.
+3. Confirm all other templates remain.
+
+Test unchanged templates:
+
+1. Cube Swarm should look and behave the same.
+2. Wireframe Core should look and behave the same.
+
+Test Laser Lattice:
+
+1. Confirm there are fewer lasers / sticks / lines at default density.
+2. Confirm Mid behaviour is unchanged.
+3. Confirm Visual Density can still increase line count.
+4. Confirm Low and High still work.
+
+Test Wireframe Bloom:
+
+1. Set Low 0%, Mid 200%, High 0%.
+2. Confirm shapes still rotate on Mid.
+3. Confirm rotation is noticeably less aggressive than before.
+4. Confirm forms remain readable.
+5. Confirm Low expansion and High glints still work.
+
+Test Fibonacci Spiral:
+
+1. Confirm visual density is reduced by about half.
+2. Confirm the spiral remains recognisable.
+3. Confirm Mid behaviour is unchanged.
+4. Confirm Low breathing and High sparkle still work.
+
+Test Sacred Geometry Bloom:
+
+1. Set Low 0%, Mid 200%, High 0%.
+2. Confirm only the central / middle section rotates.
+3. Confirm the whole structure does not rotate.
+4. Confirm outer circles/components remain mostly stable.
+5. Confirm the square frame is not present.
+6. Confirm Low expands circles.
+7. Confirm High glints still work.
+
+Test Golden Galaxy:
+
+1. Set Low 0%, Mid 200%, High 0%.
+2. Confirm particles/stars increase in size slightly.
+3. Confirm the galaxy does not become chaotic.
+4. Confirm Low spacing and High twinkle still work.
+
+Test Orbital Threads:
+
+1. Confirm low density has about 5 lines.
+2. Confirm medium density has about 9 lines.
+3. Confirm high density has about 14 lines.
+4. Confirm each line has start, middle, and end spheres.
+5. Set Low 0%, Mid 200%, High 0%.
+6. Confirm Mid subtly changes the shape of each individual curvy line.
+7. Confirm the lines stay elegant and readable.
+8. Confirm spheres remain attached to the line start, middle, and end points.
+9. Confirm Low still moves lines away from each other.
+10. Confirm High still creates small glints or sparkles.
+
+Test compatibility:
+
+1. Test uploaded track mode.
+2. Test live input mode.
+3. Test Kaleidoscope on/off.
+4. Test Kaleidoscope rotation.
+5. Test Post Effects on/off.
+6. Record a short MP4 if supported.
+7. Record a short WebM.
+8. Confirm recordings capture the updated behaviour.
+9. Run TypeScript checks.
+10. Fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- how Laser Lattice density was reduced
+- how Wireframe Bloom Mid rotation was reduced
+- how Fibonacci Spiral density was reduced
+- how Sacred Geometry Mid now affects only the centre
+- how Golden Galaxy Mid now affects particle size
+- how Silk Lines was removed
+- how Orbital Threads density was increased
+- how Orbital Threads curve deformation works
+- how unchanged templates were preserved

@@ -95,6 +95,11 @@ const VERTEX_BODY = /* glsl */ `
     ang += sin(aRadius * 0.15 - uTime * 1.2 + aPhase) * mid * 0.30;
     ang += sin(aRadius * 0.32 - uTime * 2.6 + aPhase * 1.7) * midHit * 0.22;
 
+    // MID: subtle size lift — particles grow slightly on snare/vocal presence.
+    // Variation per star (midVary) prevents identical uniform growth;
+    // clamped so the galaxy stays elegant at 200% influence.
+    float midVary = 0.55 + 0.90 * fract(aSeed * 0.273);
+
     // LOW: radial separation — every star pushes outward from the galactic
     // centre proportionally to its own radius, so kick pressure dilates the
     // disc and opens space between neighbours while the arm shapes stay
@@ -132,8 +137,11 @@ const VERTEX_BODY = /* glsl */ `
     float sparkleHit = highHit * step(0.62, twHit) * (0.6 + aBaseBright * 0.7);
 
     // LOW size lift stays slight — the separation is the primary Low effect.
+    // MID adds a per-star-varied size nudge (tasteful, not chaotic).
     float size = aBaseSize * uElementSize
-               * (1.0 + low * 0.55 + lowHit * kickVary * 0.4 + sparkle * 1.7 + sparkleHit * 1.4);
+               * (1.0 + low * 0.55 + lowHit * kickVary * 0.4
+                  + mid * midVary * 0.22 + midHit * midVary * 0.15
+                  + sparkle * 1.7 + sparkleHit * 1.4);
     gl_PointSize = clamp(size * uPixelScale / dist, 1.0, 64.0);
     gl_Position  = projectionMatrix * mv;
 
