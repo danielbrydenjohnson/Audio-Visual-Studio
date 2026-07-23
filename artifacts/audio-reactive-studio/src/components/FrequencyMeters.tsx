@@ -8,9 +8,9 @@ interface MeterConfig {
 }
 
 const METERS: MeterConfig[] = [
-  { key: "low",  label: "Low",  range: "20–100 Hz",   colorClass: "bg-primary" },
-  { key: "mid",  label: "Mid",  range: "350–4k Hz",   colorClass: "bg-chart-2" },
-  { key: "high", label: "High", range: "4k–16k Hz",   colorClass: "bg-chart-3" },
+  { key: "low",  label: "Low",        range: "30–100 Hz",  colorClass: "bg-primary" },
+  { key: "mid",  label: "Mid",        range: "1k–4k Hz",   colorClass: "bg-chart-2" },
+  { key: "high", label: "High / Hats", range: "6k–18k Hz", colorClass: "bg-chart-3" },
 ];
 
 interface FrequencyMetersProps {

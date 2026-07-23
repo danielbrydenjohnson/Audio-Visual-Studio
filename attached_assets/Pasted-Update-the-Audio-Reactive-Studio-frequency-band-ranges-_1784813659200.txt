@@ -1,0 +1,208 @@
+Update the Audio Reactive Studio frequency band ranges to a more selective instrument-targeted setup.
+
+The app is currently working. It has uploaded track mode, live input mode, Low/Mid/High level and hit analysis, Hit Response controls, visual templates, Kaleidoscope, post effects, recording, and output settings.
+
+Do not rebuild the app from scratch.
+
+Do not change visual templates in this task.
+
+Do not change recording.
+
+Do not change Kaleidoscope.
+
+Do not change post effects.
+
+Do not change Low/Mid/High visual mapping in this task.
+
+GOAL
+
+Change the audio analysis frequency ranges to:
+
+Low:
+30 Hz to 100 Hz
+
+Mid:
+1,000 Hz to 4,000 Hz
+
+High / Hi-hats:
+6,000 Hz to 18,000 Hz
+
+These gaps are intentional:
+
+Ignore:
+100 Hz to 1,000 Hz
+
+Ignore:
+4,000 Hz to 6,000 Hz
+
+The ignored ranges should not feed Low, Mid, or High.
+
+RATIONALE
+
+Low should now focus tightly on:
+
+- kick
+- sub
+- bass pressure
+- true low-end impact
+
+Mid should now focus more on:
+
+- snare presence
+- clap presence
+- vocal articulation
+- synth presence
+- musical detail
+
+High should now focus more on:
+
+- hi-hats
+- cymbals
+- air
+- bright transients
+
+The aim is to reduce muddy or constantly active visual triggering.
+
+IMPLEMENTATION
+
+Update the central frequency band definitions.
+
+Do not hardcode FFT bin numbers.
+
+Continue deriving bin indices from:
+
+- AudioContext sample rate
+- fftSize
+- frequency range in Hz
+
+Make sure both analysis paths use the updated ranges:
+
+- uploaded track mode
+- live input mode
+
+Make sure both signal types use the updated ranges:
+
+- level
+- hit / spectral flux
+
+If the analysis code clamps band frequency ranges to Nyquist, keep that behaviour.
+
+If it does not, add safe clamping so the 18,000 Hz upper bound never exceeds the analyser's usable Nyquist limit on lower sample-rate devices.
+
+UI LABELS
+
+Update any visible frequency labels.
+
+Expected labels:
+
+Low: 30-100 Hz
+Mid: 1,000-4,000 Hz
+High: 6,000-18,000 Hz
+
+Keep the internal band name as High if the app currently uses Low/Mid/High types.
+
+Do not rename the whole codebase from High to Hi-hats unless it is trivial and safe.
+
+It is acceptable for the UI to say:
+
+High / Hats: 6,000-18,000 Hz
+
+But preserve existing type compatibility.
+
+SENSITIVITY CHECK
+
+Because the ranges are now narrower and more selective, check meter behaviour.
+
+Low:
+- should still react clearly to kicks and sub-heavy bass
+- should not be constantly active from bass warmth above 100 Hz
+
+Mid:
+- should respond to snares, claps, vocals and synth presence
+- should be less constantly active than before
+
+High:
+- should respond to hi-hats, cymbals and bright transients
+- may need slight sensitivity adjustment because 6,000-18,000 Hz can be quieter depending on the track
+
+If needed, lightly retune internal level or flux sensitivity constants.
+
+Do not add new sensitivity controls.
+
+Do not over-amplify noise.
+
+PRESERVE
+
+Do not break:
+
+- uploaded track analysis
+- live input analysis
+- level meters
+- hit meters
+- Hit Response attack/decay controls
+- Low/Mid/High influence sliders
+- visual template reactions
+- Kaleidoscope
+- post effects
+- recording
+- MP4/WebM export
+- 720p/1080p/4K output
+
+VALIDATION
+
+Test uploaded track mode:
+
+1. Upload a drum-heavy house track.
+2. Confirm Low Level and Low Hit respond mainly to kick and sub.
+3. Confirm Low is tighter than before.
+4. Confirm Mid responds to snares, claps, vocals or synth presence.
+5. Confirm Mid is less muddy and less constantly active.
+6. Confirm High responds mainly to hi-hats, cymbals and bright transients.
+7. Confirm the ignored ranges do not drive the meters.
+
+Test influence isolation:
+
+1. Set Low Influence to 200%, Mid and High to 0%.
+2. Confirm only kick/sub energy drives the visuals.
+3. Set Mid Influence to 200%, Low and High to 0%.
+4. Confirm the response is cleaner and more selective.
+5. Set High Influence to 200%, Low and Mid to 0%.
+6. Confirm hi-hats and bright transients drive the visuals.
+
+Test live input mode:
+
+1. Start Live Input.
+2. Clap near the mic.
+3. Confirm Mid and/or High reacts depending on clap brightness.
+4. Speak into the mic.
+5. Confirm Mid reacts more than Low.
+6. Play bass-heavy audio through the input if possible.
+7. Confirm Low reacts.
+
+Test visual behaviour:
+
+1. Test all current templates.
+2. Confirm Low still feels physical.
+3. Confirm Mid is less chaotic.
+4. Confirm High remains sparkly.
+5. Confirm no template breaks.
+
+Test recording:
+
+1. Record a short uploaded-track clip.
+2. Confirm visuals and audio record correctly.
+3. Record a short live-input clip.
+4. Confirm live input still records correctly.
+
+Run TypeScript checks and fix all errors.
+
+After implementation, explain:
+
+- which files changed
+- where the frequency bands are defined
+- how Low changed
+- how Mid changed
+- how High changed
+- how the ignored gaps are handled
+- whether any sensitivity constants were adjusted
+- how uploaded track and live input both use the updated ranges

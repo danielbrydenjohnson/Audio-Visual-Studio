@@ -5,10 +5,11 @@
  * BandAnalysisEngine so the meters, visual templates and influence controls
  * receive identical values regardless of where the audio came from.
  *
- *   Low:  20–100 Hz    — true kick/sub pressure only
- *   Gap:  100–350 Hz  — intentionally excluded (muddy low-mid; feeds no band)
- *   Mid:  350–4000 Hz  — snares, claps, vocals, synth body, melody
- *   High: 4000–16000 Hz — hi-hats, cymbals, brightness, transients
+ *   Low:  30–100 Hz      — kick and sub only; tight bass pressure
+ *   Gap:  100–1,000 Hz  — intentionally excluded (feeds no band)
+ *   Mid:  1,000–4,000 Hz — snares, claps, vocals, synth presence
+ *   Gap:  4,000–6,000 Hz — intentionally excluded (feeds no band)
+ *   High: 6,000–18,000 Hz — hi-hats, cymbals, air, bright transients
  *
  * Each band exposes TWO signals per frame (both 0–100):
  *
@@ -73,12 +74,17 @@ export const SMOOTHING = 0.1;
 
 interface BandRange { fLow: number; fHigh: number }
 
-// 100–350 Hz is an intentional gap — feeds no band. Both fLow/fHigh are in Hz;
-// bin indices are always calculated as round(freqHz / binWidth), never hardcoded.
+// Two intentional gaps feed no band:
+//   100–1,000 Hz  (low-mid mud: bass warmth, toms, guitar body, male-vocal chest)
+//   4,000–6,000 Hz (upper-mid smear: sibilance spill, de-essed vocals)
+// Both fLow/fHigh are in Hz; bin indices are always derived from the analyser's
+// binWidth (ctx.sampleRate / fftSize), never hardcoded. endBin is clamped to
+// data.length-1, which equals fftSize/2-1 — the last valid Nyquist bin — so the
+// 18,000 Hz upper bound is safely clamped on any sample rate (e.g. 32 kHz devices).
 export const BAND_RANGES: Record<BandKey, BandRange> = {
-  low:  { fLow: 20,   fHigh: 100   },  // true kick/sub pressure only
-  mid:  { fLow: 350,  fHigh: 4000  },  // snares, claps, vocals, synth body
-  high: { fLow: 4000, fHigh: 16000 },  // hi-hats, cymbals, brightness
+  low:  { fLow: 30,   fHigh: 100   },  // kick and sub only
+  mid:  { fLow: 1000, fHigh: 4000  },  // snares, claps, vocals, synth presence
+  high: { fLow: 6000, fHigh: 18000 },  // hi-hats, cymbals, air, bright transients
 };
 
 // ─── Level smoothing (downstream replacement for the old analyser smoothing) ──
@@ -94,9 +100,9 @@ const LEVEL_RELEASE_S = 0.110;
 // smaller absolute deltas in higher bands (fewer loud bins), so sensitivity
 // rises with frequency.
 const FLUX_SENSITIVITY: Record<BandKey, number> = {
-  low:  1 / 42,
-  mid:  1 / 30,
-  high: 1 / 20,
+  low:  1 / 42,  // unchanged — 30–100 Hz kick bins are as energetic as before
+  mid:  1 / 28,  // nudged slightly (350→1000 Hz raises the floor; snare/clap energy similar)
+  high: 1 / 16,  // raised: 6–18 kHz is naturally quieter than the old 4–16 kHz range
 };
 
 // ─── Hit envelope settings (user-adjustable via the Hit Response controls) ────
